@@ -1,0 +1,140 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    --background: 220 26% 6%;
+    --foreground: 210 40% 98%;
+
+    --card: 220 26% 8%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 220 26% 8%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 212 100% 55%;
+    --primary-foreground: 220 26% 6%;
+
+    --secondary: 220 26% 12%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 220 26% 12%;
+    --muted-foreground: 215 20% 65%;
+
+    --accent: 220 26% 12%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 220 26% 12%;
+    --input: 220 26% 12%;
+    --ring: 212 100% 55%;
+
+    /* Financial colors */
+    --success: 142 76% 36%;
+    --success-foreground: 210 40% 98%;
+    --error: 0 84% 60%;
+    --error-foreground: 210 40% 98%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 220 26% 6%;
+
+    /* Chart colors */
+    --chart-grid: 220 26% 15%;
+    --chart-primary: 212 100% 55%;
+    --chart-secondary: 142 76% 36%;
+    --chart-accent: 38 92% 50%;
+
+    --radius: 0.5rem;
+
+    --sidebar-background: 0 0% 98%;
+
+    --sidebar-foreground: 240 5.3% 26.1%;
+
+    --sidebar-primary: 240 5.9% 10%;
+
+    --sidebar-primary-foreground: 0 0% 98%;
+
+    --sidebar-accent: 240 4.8% 95.9%;
+
+    --sidebar-accent-foreground: 240 5.9% 10%;
+
+    --sidebar-border: 220 13% 91%;
+
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    --background: 220 26% 4%;
+    --foreground: 210 40% 98%;
+
+    --card: 220 26% 6%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 220 26% 6%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 212 100% 60%;
+    --primary-foreground: 220 26% 4%;
+
+    --secondary: 220 26% 10%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 220 26% 10%;
+    --muted-foreground: 215 20% 70%;
+
+    --accent: 220 26% 10%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 84% 65%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 220 26% 10%;
+    --input: 220 26% 10%;
+    --ring: 212 100% 60%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    background: linear-gradient(135deg, hsl(220 26% 6%) 0%, hsl(220 26% 8%) 100%);
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: hsl(var(--muted));
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--primary));
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--primary) / 0.8);
+  }
+}

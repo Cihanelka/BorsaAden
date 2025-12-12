@@ -3,38 +3,34 @@ Türkçe haber duygu analizi modülü
 """
 import pandas as pd
 import numpy as np
-from transformers import AutoTokenizer, AutoModelForSequenceClassification, pipeline
-import torch
 import os
+from datetime import datetime, timedelta
 from config import *
+
+# Transformers'ı lazy import yap (TensorFlow hatalarını önlemek için)
+try:
+    from transformers import AutoTokenizer, AutoModelForSequenceClassification, pipeline
+    import torch
+    TRANSFORMERS_AVAILABLE = True
+except Exception as e:
+    print(f"⚠️ Transformers yüklenemedi: {str(e)}")
+    print("ℹ️ Basit sentiment analizi kullanılacak")
+    TRANSFORMERS_AVAILABLE = False
 
 class SentimentAnalyzer:
     """Haberlerin duygu analizini yapar ve skorlar"""
     
     def __init__(self):
         """Duygu analizi modelini yükler"""
-        print("🤖 Duygu analizi modeli yükleniyor...")
+        print("🤖 Basit sentiment analizi kullanılacak (BERT devre dışı)")
         
-        try:
-            # Türkçe BERT sentiment modeli
-            self.model_name = SENTIMENT_MODEL
-            self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-            self.model = AutoModelForSequenceClassification.from_pretrained(self.model_name)
-            
-            # Pipeline oluştur
-            self.sentiment_pipeline = pipeline(
-                "sentiment-analysis",
-                model=self.model,
-                tokenizer=self.tokenizer,
-                device=0 if torch.cuda.is_available() else -1
-            )
-            
-            print(f"✅ Model yüklendi: {self.model_name}")
-            print(f"🔧 Cihaz: {'GPU' if torch.cuda.is_available() else 'CPU'}")
-            
-        except Exception as e:
-            print(f"❌ Model yükleme hatası: {str(e)}")
-            raise
+        # BERT modelini devre dışı bırak, sadece basit analiz kullan
+        self.sentiment_pipeline = None
+        self.model = None
+        self.tokenizer = None
+        
+        # BERT yüklemeyi atla
+        print("✅ Basit kelime tabanlı sentiment analizi hazır")
     
     def clean_text(self, text):
         """
@@ -68,6 +64,10 @@ class SentimentAnalyzer:
         if not text:
             return {'label': 'neutral', 'score': 0.5}
         
+        # Eğer model yüklü değilse basit analiz kullan
+        if self.sentiment_pipeline is None:
+            return self._simple_sentiment(text)
+        
         try:
             # Metni maksimum token uzunluğuna göre kes
             result = self.sentiment_pipeline(text, truncation=True, max_length=512)[0]
@@ -75,6 +75,57 @@ class SentimentAnalyzer:
             
         except Exception as e:
             print(f"⚠️ Sentiment analiz hatası: {str(e)}")
+            return self._simple_sentiment(text)
+    
+    def _simple_sentiment(self, text):
+        """
+        Geliştirilmiş kelime tabanlı sentiment analizi
+        İngilizce ve Türkçe finansal kelimeler
+        """
+        # Pozitif kelimeler (İngilizce + Türkçe)
+        positive_words = [
+            # İngilizce
+            'gain', 'gains', 'profit', 'profits', 'rise', 'rises', 'rose', 'up', 'surge', 'surges',
+            'growth', 'grow', 'increase', 'increases', 'high', 'higher', 'beat', 'beats',
+            'strong', 'strength', 'positive', 'bull', 'bullish', 'rally', 'rallies',
+            'success', 'successful', 'advance', 'advances', 'boost', 'boosts', 'upgraded',
+            'outperform', 'outperforms', 'exceed', 'exceeds', 'soar', 'soars',
+            # Türkçe
+            'kazanç', 'kâr', 'yükseliş', 'artış', 'büyüme', 'güçlü', 'pozitif', 
+            'başarı', 'başarılı', 'iyi', 'güzel', 'harika', 'mükemmel', 'rekor'
+        ]
+        
+        # Negatif kelimeler (İngilizce + Türkçe)
+        negative_words = [
+            # İngilizce
+            'loss', 'losses', 'lose', 'lost', 'fall', 'falls', 'fell', 'drop', 'drops', 'dropped',
+            'decline', 'declines', 'decrease', 'decreases', 'low', 'lower', 'weak', 'weakness',
+            'negative', 'bear', 'bearish', 'miss', 'misses', 'missed', 'risk', 'risks',
+            'concern', 'concerns', 'worry', 'worries', 'downgrade', 'downgrades', 'plunge',
+            'tumble', 'tumbles', 'underperform', 'underperforms', 'slump', 'slumps',
+            # Türkçe
+            'kayıp', 'zarar', 'düşüş', 'azalış', 'zayıf', 'negatif', 'risk',
+            'endişe', 'kötü', 'düşük', 'gerileme', 'çöküş'
+        ]
+        
+        text_lower = text.lower()
+        
+        # Kelimeleri say
+        pos_count = sum(1 for word in positive_words if word in text_lower)
+        neg_count = sum(1 for word in negative_words if word in text_lower)
+        
+        # Skor hesapla
+        total = pos_count + neg_count
+        if total == 0:
+            return {'label': 'neutral', 'score': 0.5}
+        
+        pos_ratio = pos_count / total
+        
+        if pos_ratio > 0.6:
+            return {'label': 'positive', 'score': min(0.5 + pos_ratio * 0.3, 0.9)}
+        elif pos_ratio < 0.4:
+            return {'label': 'negative', 'score': min(0.5 + (1 - pos_ratio) * 0.3, 0.9)}
+        else:
             return {'label': 'neutral', 'score': 0.5}
     
     def analyze_news_batch(self, news_df):
@@ -131,6 +182,19 @@ class SentimentAnalyzer:
         print("✅ Duygu analizi tamamlandı")
         return news_df
     
+    def _default_summary(self, symbol):
+        """Varsayılan duygu özeti"""
+        return {
+            'symbol': symbol,
+            'avg_sentiment': 0.0,
+            'normalized_sentiment': 0.0,
+            'news_count': 0,
+            'positive_count': 0,
+            'negative_count': 0,
+            'neutral_count': 0,
+            'latest_date': None
+        }
+    
     def get_aggregated_sentiment(self, news_df, symbol, days=7):
         """
         Belirli bir hisse için belirli gün aralığındaki ortalama duygu skorunu hesaplar
@@ -143,47 +207,57 @@ class SentimentAnalyzer:
         Returns:
             dict: Toplam duygu bilgileri
         """
-        if news_df.empty or 'sentiment_score' not in news_df.columns:
-            return {
-                'symbol': symbol,
-                'avg_sentiment': 0.5,
-                'normalized_sentiment': 0.0,
-                'news_count': 0,
-                'positive_count': 0,
-                'negative_count': 0,
-                'neutral_count': 0
-            }
+        required_columns = {'sentiment_score', 'normalized_score'}
+        if news_df is None or news_df.empty or not required_columns.issubset(set(news_df.columns)):
+            return self._default_summary(symbol)
         
         # Sembole göre filtrele
-        symbol_news = news_df[news_df['symbol'] == symbol].copy()
+        if 'symbol' in news_df.columns:
+            symbol_news = news_df[news_df['symbol'] == symbol].copy()
+        else:
+            print("⚠️ 'symbol' kolonu bulunamadı, tüm haberler kullanılacak")
+            symbol_news = news_df.copy()
+            symbol_news['symbol'] = symbol
         
         if symbol_news.empty:
-            return {
-                'symbol': symbol,
-                'avg_sentiment': 0.5,
-                'normalized_sentiment': 0.0,
-                'news_count': 0,
-                'positive_count': 0,
-                'negative_count': 0,
-                'neutral_count': 0
-            }
+            return self._default_summary(symbol)
         
         # Son N günlük haberleri al
         if 'datetime' in symbol_news.columns:
-            symbol_news['datetime'] = pd.to_datetime(symbol_news['datetime'], unit='s')
             cutoff_date = datetime.now() - timedelta(days=days)
-            symbol_news = symbol_news[symbol_news['datetime'] >= cutoff_date]
+            try:
+                if np.issubdtype(symbol_news['datetime'].dtype, np.number):
+                    symbol_news['datetime'] = pd.to_datetime(symbol_news['datetime'], unit='s', errors='coerce')
+                else:
+                    symbol_news['datetime'] = pd.to_datetime(symbol_news['datetime'], errors='coerce')
+                symbol_news = symbol_news[symbol_news['datetime'] >= cutoff_date]
+            except Exception as e:
+                print(f"⚠️ datetime dönüştürme hatası: {e}")
+                symbol_news['datetime'] = pd.NaT
+        else:
+            symbol_news['datetime'] = pd.NaT
+        
+        if symbol_news.empty:
+            return self._default_summary(symbol)
         
         # İstatistikler
+        avg_sentiment = np.nan_to_num(symbol_news['sentiment_score'].mean(), nan=0.0)
+        normalized_sentiment = np.nan_to_num(symbol_news['normalized_score'].mean(), nan=0.0)
+        sentiment_col = 'sentiment' if 'sentiment' in symbol_news.columns else None
+        
+        positive_count = int((symbol_news[sentiment_col] == 'positive').sum()) if sentiment_col else 0
+        negative_count = int((symbol_news[sentiment_col] == 'negative').sum()) if sentiment_col else 0
+        neutral_count = int((symbol_news[sentiment_col] == 'neutral').sum()) if sentiment_col else 0
+        
         result = {
             'symbol': symbol,
-            'avg_sentiment': symbol_news['sentiment_score'].mean(),
-            'normalized_sentiment': symbol_news['normalized_score'].mean(),
-            'news_count': len(symbol_news),
-            'positive_count': len(symbol_news[symbol_news['sentiment'] == 'positive']),
-            'negative_count': len(symbol_news[symbol_news['sentiment'] == 'negative']),
-            'neutral_count': len(symbol_news[symbol_news['sentiment'] == 'neutral']),
-            'latest_date': symbol_news['datetime'].max() if 'datetime' in symbol_news.columns else None
+            'avg_sentiment': float(avg_sentiment),
+            'normalized_sentiment': float(normalized_sentiment),
+            'news_count': int(len(symbol_news)),
+            'positive_count': positive_count,
+            'negative_count': negative_count,
+            'neutral_count': neutral_count,
+            'latest_date': symbol_news['datetime'].max() if symbol_news['datetime'].notna().any() else None
         }
         
         return result

@@ -1,9 +1,12 @@
 """
-Teknik analiz göstergeleri hesaplama modülü
+Teknik analiz modülü - Hisse senedi teknik göstergelerini hesaplar
 """
 import pandas as pd
 import numpy as np
-import pandas_ta as ta
+try:
+    import pandas_ta as ta
+except ImportError:
+    import ta
 from config import *
 
 class TechnicalAnalyzer:
@@ -24,8 +27,16 @@ class TechnicalAnalyzer:
         Returns:
             Series: RSI değerleri
         """
-        rsi = ta.rsi(df['close'], length=period)
-        return rsi
+        try:
+            rsi = ta.rsi(df['close'], length=period)
+            return rsi
+        except (AttributeError, TypeError):
+            delta = df['close'].diff()
+            gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+            loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+            rs = gain / loss
+            rsi = 100 - (100 / (1 + rs))
+            return rsi
     
     def calculate_macd(self, df, fast=12, slow=26, signal=9):
         """
@@ -37,8 +48,16 @@ class TechnicalAnalyzer:
         Returns:
             DataFrame: MACD, MACD Signal, MACD Histogram
         """
-        macd = ta.macd(df['close'], fast=fast, slow=slow, signal=signal)
-        return macd
+        try:
+            macd = ta.macd(df['close'], fast=fast, slow=slow, signal=signal)
+            return macd
+        except (AttributeError, TypeError):
+            ema_fast = df['close'].ewm(span=fast, adjust=False).mean()
+            ema_slow = df['close'].ewm(span=slow, adjust=False).mean()
+            macd_line = ema_fast - ema_slow
+            signal_line = macd_line.ewm(span=signal, adjust=False).mean()
+            histogram = macd_line - signal_line
+            return pd.DataFrame({'MACD': macd_line, 'MACD_signal': signal_line, 'MACD_histogram': histogram})
     
     def calculate_bollinger_bands(self, df, period=20, std=2):
         """
@@ -52,8 +71,15 @@ class TechnicalAnalyzer:
         Returns:
             DataFrame: Upper, Middle, Lower bands
         """
-        bb = ta.bbands(df['close'], length=period, std=std)
-        return bb
+        try:
+            bb = ta.bbands(df['close'], length=period, std=std)
+            return bb
+        except (AttributeError, TypeError):
+            sma = df['close'].rolling(window=period).mean()
+            rolling_std = df['close'].rolling(window=period).std()
+            upper = sma + (rolling_std * std)
+            lower = sma - (rolling_std * std)
+            return pd.DataFrame({'BB_upper': upper, 'BB_middle': sma, 'BB_lower': lower})
     
     def calculate_sma(self, df, periods=[20, 50, 200]):
         """
@@ -68,7 +94,10 @@ class TechnicalAnalyzer:
         """
         result = pd.DataFrame()
         for period in periods:
-            result[f'SMA_{period}'] = ta.sma(df['close'], length=period)
+            try:
+                result[f'SMA_{period}'] = ta.sma(df['close'], length=period)
+            except (AttributeError, TypeError):
+                result[f'SMA_{period}'] = df['close'].rolling(window=period).mean()
         return result
     
     def calculate_ema(self, df, periods=[12, 26]):
@@ -84,7 +113,10 @@ class TechnicalAnalyzer:
         """
         result = pd.DataFrame()
         for period in periods:
-            result[f'EMA_{period}'] = ta.ema(df['close'], length=period)
+            try:
+                result[f'EMA_{period}'] = ta.ema(df['close'], length=period)
+            except (AttributeError, TypeError):
+                result[f'EMA_{period}'] = df['close'].ewm(span=period, adjust=False).mean()
         return result
     
     def calculate_stochastic(self, df, k=14, d=3, smooth_k=3):
@@ -97,8 +129,16 @@ class TechnicalAnalyzer:
         Returns:
             DataFrame: %K ve %D değerleri
         """
-        stoch = ta.stoch(df['high'], df['low'], df['close'], k=k, d=d, smooth_k=smooth_k)
-        return stoch
+        try:
+            stoch = ta.stoch(df['high'], df['low'], df['close'], k=k, d=d, smooth_k=smooth_k)
+            return stoch
+        except (AttributeError, TypeError):
+            low_min = df['low'].rolling(window=k).min()
+            high_max = df['high'].rolling(window=k).max()
+            stoch_k = 100 * ((df['close'] - low_min) / (high_max - low_min))
+            stoch_k = stoch_k.rolling(window=smooth_k).mean()
+            stoch_d = stoch_k.rolling(window=d).mean()
+            return pd.DataFrame({'STOCH_k': stoch_k, 'STOCH_d': stoch_d})
     
     def calculate_atr(self, df, period=14):
         """
@@ -111,8 +151,16 @@ class TechnicalAnalyzer:
         Returns:
             Series: ATR değerleri
         """
-        atr = ta.atr(df['high'], df['low'], df['close'], length=period)
-        return atr
+        try:
+            atr = ta.atr(df['high'], df['low'], df['close'], length=period)
+            return atr
+        except (AttributeError, TypeError):
+            high_low = df['high'] - df['low']
+            high_close = np.abs(df['high'] - df['close'].shift())
+            low_close = np.abs(df['low'] - df['close'].shift())
+            true_range = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
+            atr = true_range.rolling(window=period).mean()
+            return atr
     
     def calculate_obv(self, df):
         """
@@ -124,8 +172,12 @@ class TechnicalAnalyzer:
         Returns:
             Series: OBV değerleri
         """
-        obv = ta.obv(df['close'], df['volume'])
-        return obv
+        try:
+            obv = ta.obv(df['close'], df['volume'])
+            return obv
+        except (AttributeError, TypeError):
+            obv = (np.sign(df['close'].diff()) * df['volume']).fillna(0).cumsum()
+            return obv
     
     def calculate_all_indicators(self, df):
         """

@@ -1,17 +1,17 @@
 import { useEffect, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
+import { Link } from "react-router-dom";
 import { StockSearch } from "@/components/StockSearch";
 import { StockChart } from "@/components/StockChart";
 import { TechnicalAnalysis } from "@/components/TechnicalAnalysis";
 import { StockComments } from "@/components/StockComments";
 import { CompanyFinancials } from "@/components/CompanyFinancials";
 import { BackgroundChart } from "@/components/BackgroundChart";
-import { TrendingUp, BarChart3, MessageCircle, Newspaper, History, LineChart, Building2, Sparkles, LogOut, User, Star } from "lucide-react";
+import { TrendingUp, BarChart3, MessageCircle, Newspaper, History, LineChart, Building2, Sparkles, Star } from "lucide-react";
 import { getTimeSeries, TimeSeriesData } from "@/services/stockService";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { AppHeader } from "@/components/AppHeader";
 
 interface Stock {
   symbol: string;
@@ -22,9 +22,6 @@ interface Stock {
 }
 
 const Index = () => {
-  const location = useLocation();
-  const navigate = useNavigate();
-  const { user, signOut } = useAuth();
   const [selectedStock, setSelectedStock] = useState<Stock | null>(null);
   const [timeSeries, setTimeSeries] = useState<TimeSeriesData[]>([]);
   const [tsLoading, setTsLoading] = useState(false);
@@ -66,80 +63,7 @@ const Index = () => {
     <div className="min-h-screen bg-background relative overflow-hidden">
       <BackgroundChart />
       
-      {/* Header */}
-      <header className="relative z-10 border-b border-border/50 bg-background/80 backdrop-blur-sm">
-        <div className="container mx-auto px-4 py-6">
-          <div className="flex items-center justify-between">
-            <Card className="border-border/50 bg-card/80 backdrop-blur-sm">
-              <CardContent className="py-3 px-4">
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 bg-gradient-to-br from-primary to-blue-600 rounded-lg flex items-center justify-center shadow-lg">
-                    <TrendingUp className="h-6 w-6 text-primary-foreground" />
-                  </div>
-                  <div>
-                    <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-green-500 bg-clip-text text-transparent">
-                        Aden Borsa
-                    </h1>
-                    <p className="text-sm text-muted-foreground">
-                      Profesyonel Borsa Analiz Platformu
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            
-            <div className="flex items-center gap-3">
-              <Link to="/">
-                <Button 
-                  variant={location.pathname === "/" ? "default" : "ghost"}
-                  className="gap-2"
-                >
-                  <BarChart3 className="h-4 w-4" />
-                  <span>Hisse Analizi</span>
-                </Button>
-              </Link>
-              <Link to="/favoriler">
-                <Button 
-                  variant={location.pathname === "/favoriler" ? "default" : "ghost"}
-                  className="gap-2"
-                >
-                  <Star className="h-4 w-4" />
-                  <span>Favorilerim</span>
-                </Button>
-              </Link>
-              <Link to="/haberler">
-                <Button 
-                  variant={location.pathname === "/haberler" ? "default" : "ghost"}
-                  className="gap-2"
-                >
-                  <Newspaper className="h-4 w-4" />
-                  <span>Haberler</span>
-                </Button>
-              </Link>
-              
-              <div className="flex items-center gap-2 ml-4 pl-4 border-l border-border">
-                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-card/50">
-                  <User className="h-4 w-4 text-muted-foreground" />
-                  <Link to="/profil" className="text-sm font-medium hover:underline">
-                      {user?.username}
-                  </Link>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={async () => {
-                    await signOut();
-                    navigate('/giris');
-                  }}
-                  title="Çıkış Yap"
-                >
-                  <LogOut className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
+      <AppHeader />
 
       {/* Main Content */}
       <main className="relative z-10 container mx-auto px-4 py-8">
@@ -307,8 +231,13 @@ const Index = () => {
             <CardContent className="py-12">
               <div className="text-center">
                 <div className="relative">
-                  <div className="h-32 w-32 bg-gradient-to-br from-primary to-blue-600 rounded-full mx-auto mb-6 flex items-center justify-center shadow-lg animate-pulse">
-                    <TrendingUp className="h-16 w-16 text-primary-foreground" />
+                  <div className="relative mx-auto mb-6 h-40 w-40 max-w-full rounded-full border border-border/70 shadow-xl overflow-hidden">
+                    <img
+                      src="/1.ico"
+                      alt="Aden Borsa Logo"
+                      className="h-full w-full object-cover"
+                      loading="lazy"
+                    />
                   </div>
                   
                   <h3 className="text-2xl font-semibold text-foreground mb-4">

@@ -35,7 +35,7 @@ export interface MLPrediction {
   technical_score?: number;
   sentiment_score?: number;
   news_count?: number;
-  method?: 'ml_model' | 'rule_based' | 'technical_analysis';
+  method?: 'ml_model';
   timestamp?: string;
   price_data?: {
     current: number;

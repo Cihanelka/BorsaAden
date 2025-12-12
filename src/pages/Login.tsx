@@ -40,9 +40,11 @@ export default function Login() {
           <CardContent className="pt-6">
             <div className="text-center">
               <div className="inline-flex items-center gap-3 mb-4">
-                <div className="h-12 w-12 bg-gradient-primary rounded-lg flex items-center justify-center shadow-glow">
-                  <TrendingUp className="h-7 w-7 text-primary-foreground" />
-                </div>
+                <img 
+                  src="/1.ico" 
+                  alt="Aden Borsa Logo" 
+                  className="h-12 w-12 rounded-lg shadow-glow"
+                />
                 <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-chart-secondary bg-clip-text text-transparent">
                   Aden Borsa
                 </h1>

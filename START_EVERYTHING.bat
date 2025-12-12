@@ -8,7 +8,7 @@ echo.
 echo [1/3] 🤖 Python ML Servisi başlatılıyor...
 echo Port: 5000
 echo Mode: Random Forest (Eğitilmiş Model)
-start "ML Service" cmd /k "cd ml-service && python app_rf.py"
+start "ML Service" cmd /k "cd ml-service && python app.py"
 timeout /t 3 /nobreak >nul
 
 echo.

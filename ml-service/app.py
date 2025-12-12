@@ -19,6 +19,31 @@ CORS(app)  # CORS'u etkinleştir
 collector = DataCollector()
 predictor = StockPredictor()
 
+def save_sentiment_csv(df):
+    """
+    Haber sentiment sonuçlarını merkezi CSV'de saklar
+    """
+    if df is None or df.empty:
+        return
+    
+    sentiment_csv = os.path.join(CSV_DIR, 'news_with_sentiment.csv')
+    
+    try:
+        if os.path.exists(sentiment_csv):
+            existing_df = pd.read_csv(sentiment_csv)
+            combined_df = pd.concat([existing_df, df], ignore_index=True)
+            # Yinelenenleri sembol + tarih + başlık bazında kaldır
+            duplicate_cols = [col for col in ['symbol', 'datetime', 'headline'] if col in combined_df.columns]
+            if duplicate_cols:
+                combined_df = combined_df.drop_duplicates(subset=duplicate_cols, keep='last')
+            combined_df.to_csv(sentiment_csv, index=False)
+            print(f"💾 Haber sentiment CSV güncellendi: {len(df)} yeni satır")
+        else:
+            df.to_csv(sentiment_csv, index=False)
+            print(f"💾 Haber sentiment CSV oluşturuldu: {sentiment_csv} ({len(df)} satır)")
+    except Exception as e:
+        print(f"⚠️ Haber sentiment CSV kaydedilemedi: {e}")
+
 @app.route('/api/health', methods=['GET'])
 def health_check():
     """Servis sağlık kontrolü"""
@@ -122,34 +147,94 @@ def predict():
                 'error': 'symbol parametresi gerekli'
             }), 400
         
+        # Model kontrolü
+        if predictor.model is None or predictor.scaler is None:
+            return jsonify({
+                'success': False,
+                'error': 'ML modeli yüklü değil. Lütfen önce modeli eğitin: python ml-service/train_random_forest.py'
+            }), 503
+        
         use_cached = data.get('use_cached_data', True)
+        
+        print(f"🔍 use_cached_data parametresi: {use_cached} (tip: {type(use_cached)})")
+        
+        stock_df = None
+        news_df = None
         
         if use_cached:
             # CSV'den verileri oku
             stock_csv = os.path.join(CSV_DIR, 'stock_data.csv')
             news_csv = os.path.join(CSV_DIR, 'news_with_sentiment.csv')
             
-            stock_df = None
-            news_df = None
-            
+            # Hisse verilerini yükle
             if os.path.exists(stock_csv):
                 stock_df = pd.read_csv(stock_csv)
+                # Sembole göre filtrele
+                stock_df = stock_df[stock_df['symbol'] == symbol]
+                if stock_df.empty:
+                    print(f"⚠️ CSV'de {symbol} hisse verisi yok, canlı çekiliyor...")
+                    stock_df = collector.collect_stock_data(symbol, days=90)
+            else:
+                print(f"⚠️ CSV bulunamadı, canlı veri çekiliyor...")
+                stock_df = collector.collect_stock_data(symbol, days=90)
             
+            # Haber verilerini yükle - MUTLAKA HABER BULUNMALI!
+            news_df = None
+            
+            # 1. Önce sentiment analizli CSV'yi kontrol et
             if os.path.exists(news_csv):
-                news_df = pd.read_csv(news_csv)
-            elif os.path.exists(os.path.join(CSV_DIR, 'news_data.csv')):
-                # Sentiment analizi yapılmamışsa şimdi yap
-                news_df = pd.read_csv(os.path.join(CSV_DIR, 'news_data.csv'))
-                news_df = predictor.sentiment_analyzer.analyze_news_batch(news_df)
+                temp_df = pd.read_csv(news_csv)
+                temp_df = temp_df[temp_df['symbol'] == symbol]
+                if not temp_df.empty:
+                    news_df = temp_df
+                    print(f"✅ CSV'den {len(news_df)} haber yüklendi (sentiment var)")
+            
+            # 2. Sentiment analizli haber yoksa, ham haber CSV'sini kontrol et
+            if news_df is None or news_df.empty:
+                if os.path.exists(os.path.join(CSV_DIR, 'news_data.csv')):
+                    temp_df = pd.read_csv(os.path.join(CSV_DIR, 'news_data.csv'))
+                    temp_df = temp_df[temp_df['symbol'] == symbol]
+                    if not temp_df.empty:
+                        print(f"⚙️ CSV'den {len(temp_df)} haber bulundu, sentiment analizi yapılıyor...")
+                        news_df = predictor.sentiment_analyzer.analyze_news_batch(temp_df)
+                        save_sentiment_csv(news_df)
+            
+            # 3. Hala haber yoksa MUTLAKA canlı çek!
+            if news_df is None or news_df.empty:
+                print(f"\n{'='*60}")
+                print(f"⚠️ CSV'de {symbol} haberi yok - CANLI ÇEKİLECEK!")
+                print(f"{'='*60}")
+                company_name = COMPANY_NAMES.get(symbol)
+                news_df = collector.collect_company_news(symbol, days=30, company_name=company_name)
+                
+                # Haber bulunduysa sentiment analizi YAP!
+                if not news_df.empty:
+                    print(f"\n⚙️ SENTIMENT ANALİZİ YAPILIYOR: {len(news_df)} haber")
+                    news_df = predictor.sentiment_analyzer.analyze_news_batch(news_df)
+                    save_sentiment_csv(news_df)
+                    print(f"✅ Sentiment analizi tamamlandı!\n")
+                else:
+                    print(f"\n⚠️ UYARI: {symbol} için haber bulunamadı, sadece teknik analiz kullanılacak\n")
             
             result = predictor.predict_stock(symbol, stock_df, news_df)
         else:
             # Canlı veri çek ve tahmin yap
-            stock_df = collector.collect_stock_data(symbol, days=90)
-            news_df = collector.collect_company_news(symbol, days=30)
+            print(f"\n{'='*60}")
+            print(f"🔴 CANLI VERİ MODU - {symbol}")
+            print(f"{'='*60}\n")
             
+            stock_df = collector.collect_stock_data(symbol, days=90)
+            company_name = COMPANY_NAMES.get(symbol)
+            news_df = collector.collect_company_news(symbol, days=30, company_name=company_name)
+            
+            # MUTLAKA sentiment analizi yap!
             if not news_df.empty:
+                print(f"\n⚙️ SENTIMENT ANALİZİ YAPILIYOR: {len(news_df)} haber")
                 news_df = predictor.sentiment_analyzer.analyze_news_batch(news_df)
+                save_sentiment_csv(news_df)
+                print(f"✅ Sentiment analizi tamamlandı!\n")
+            else:
+                print(f"\n⚠️ UYARI: {symbol} için haber bulunamadı, sadece teknik analiz kullanılacak\n")
             
             result = predictor.predict_stock(symbol, stock_df, news_df)
         
@@ -159,6 +244,9 @@ def predict():
         })
         
     except Exception as e:
+        print(f"❌ Predict hatası ({symbol}): {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({
             'success': False,
             'error': str(e)
@@ -320,6 +408,8 @@ def sentiment_summary():
         symbol = data.get('symbol')
         days = data.get('days', 7)
         
+        print(f"\n📊 SENTIMENT SUMMARY İSTEĞİ: {symbol} ({days} gün)")
+        
         if not symbol:
             return jsonify({
                 'success': False,
@@ -330,23 +420,118 @@ def sentiment_summary():
         news_csv = os.path.join(CSV_DIR, 'news_with_sentiment.csv')
         
         if not os.path.exists(news_csv):
+            print(f"⚠️ CSV bulunamadı: {news_csv}")
+            print("ℹ️ Önce /api/predict endpoint'ini çağırın, otomatik haber çekecek")
+            # Boş sonuç döndür, hata verme
             return jsonify({
-                'success': False,
-                'error': 'Duygu analizi verisi bulunamadı'
-            }), 404
+                'success': True,
+                'symbol': symbol,
+                'result': {
+                    'news_count': 0,
+                    'positive_count': 0,
+                    'negative_count': 0,
+                    'neutral_count': 0,
+                    'avg_sentiment': 0.0,
+                    'normalized_sentiment': 0.0,
+                    'recent_headlines': []
+                }
+            })
         
-        news_df = pd.read_csv(news_csv)
-        sentiment_result = predictor.sentiment_analyzer.get_aggregated_sentiment(
-            news_df, symbol, days
-        )
+        try:
+            news_df = pd.read_csv(news_csv)
+            print(f"✅ CSV okundu: {len(news_df)} satır")
+            
+            # Symbol'e göre filtrele ve say
+            symbol_news = news_df[news_df['symbol'] == symbol] if 'symbol' in news_df.columns else pd.DataFrame()
+            print(f"📰 {symbol} için: {len(symbol_news)} haber")
+            
+            sentiment_result = predictor.sentiment_analyzer.get_aggregated_sentiment(
+                news_df, symbol, days
+            )
+            print(f"✅ Sentiment hesaplandı: {sentiment_result.get('news_count', 0)} haber")
+            
+        except Exception as e:
+            print(f"⚠️ İşlem hatası: {e}")
+            import traceback
+            traceback.print_exc()
+            sentiment_result = {
+                'symbol': symbol,
+                'avg_sentiment': 0.0,
+                'normalized_sentiment': 0.0,
+                'news_count': 0,
+                'positive_count': 0,
+                'negative_count': 0,
+                'neutral_count': 0,
+                'recent_headlines': []
+            }
         
         return jsonify({
             'success': True,
             'symbol': symbol,
-            'sentiment_summary': sentiment_result
+            'result': sentiment_result
         })
         
     except Exception as e:
+        print(f"❌ Sentiment summary hatası: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/stock-data', methods=['POST'])
+def stock_data():
+    """
+    Hisse senedi fiyat verilerini çeker (yfinance ile)
+    
+    Body:
+    {
+        "symbol": "AAPL",
+        "days": 30
+    }
+    """
+    try:
+        data = request.json
+        symbol = data.get('symbol')
+        days = data.get('days', 30)
+        
+        if not symbol:
+            return jsonify({
+                'success': False,
+                'error': 'symbol parametresi gerekli'
+            }), 400
+        
+        # Hisse verilerini çek
+        stock_df = collector.collect_stock_data(symbol, days=days)
+        
+        if stock_df.empty:
+            return jsonify({
+                'success': False,
+                'error': f'{symbol} için veri bulunamadı'
+            }), 404
+        
+        # DataFrame'i JSON'a çevir - date formatını düzelt
+        stock_df_copy = stock_df.reset_index()
+        
+        # Date sütununu ISO format string'e çevir
+        if 'Date' in stock_df_copy.columns:
+            stock_df_copy['Date'] = stock_df_copy['Date'].dt.strftime('%Y-%m-%d')
+        elif stock_df_copy.index.name == 'Date':
+            stock_df_copy.index = stock_df_copy.index.strftime('%Y-%m-%d')
+        
+        stock_data = stock_df_copy.to_dict('records')
+        
+        return jsonify({
+            'success': True,
+            'symbol': symbol,
+            'data': stock_data
+        })
+        
+    except Exception as e:
+        print(f"❌ Stock data hatası: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({
             'success': False,
             'error': str(e)

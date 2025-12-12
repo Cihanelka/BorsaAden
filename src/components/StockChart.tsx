@@ -55,9 +55,9 @@ export const StockChart = ({ stock }: StockChartProps) => {
           throw new Error(result.error || 'Grafik verileri alınamadı');
         }
         
-        // Veriyi formatla
+        // Veriyi formatla - Date field'ını datetime'a map et
         const formattedData = result.data.map((item: any) => ({
-          datetime: item.datetime,
+          datetime: item.Date || item.date || item.datetime,
           open: item.open,
           high: item.high,
           low: item.low,

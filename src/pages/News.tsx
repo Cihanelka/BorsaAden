@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { BackgroundChart } from "@/components/BackgroundChart";
-import { Newspaper, ExternalLink, Calendar, TrendingUp, BarChart3, Search } from "lucide-react";
+import { Newspaper, ExternalLink, Calendar, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getCompanyNews } from "@/services/finnhubService";
+import { AppHeader } from "@/components/AppHeader";
 
 interface NewsArticle {
   category: string;
@@ -21,8 +21,6 @@ interface NewsArticle {
 }
 
 const News = () => {
-  const location = useLocation();
-  const navigate = useNavigate();
   const [articles, setArticles] = useState<NewsArticle[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -77,50 +75,7 @@ const News = () => {
     <div className="min-h-screen bg-background relative overflow-hidden">
       <BackgroundChart />
       
-      {/* Header */}
-      <header className="relative z-10 border-b border-border/50 bg-background/80 backdrop-blur-sm">
-        <div className="container mx-auto px-4 py-6">
-          <div className="flex items-center justify-between">
-            <div
-              className="flex items-center gap-3 cursor-pointer"
-              onClick={() => navigate('/')}
-            >
-              <div className="h-10 w-10 bg-gradient-primary rounded-lg flex items-center justify-center shadow-glow">
-                <TrendingUp className="h-6 w-6 text-primary-foreground" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-chart-secondary bg-clip-text text-transparent">
-                  Aden Borsa
-                </h1>
-                <p className="text-sm text-muted-foreground">
-                  Profesyonel Borsa Analiz Platformu
-                </p>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-3">
-              <Link to="/">
-                <Button 
-                  variant={location.pathname === "/" ? "default" : "ghost"}
-                  className="gap-2"
-                >
-                  <BarChart3 className="h-4 w-4" />
-                  <span>Hisse Analizi</span>
-                </Button>
-              </Link>
-              <Link to="/haberler">
-                <Button 
-                  variant={location.pathname === "/haberler" ? "default" : "ghost"}
-                  className="gap-2"
-                >
-                  <Newspaper className="h-4 w-4" />
-                  <span>Haberler</span>
-                </Button>
-              </Link>
-            </div>
-          </div>
-        </div>
-      </header>
+      <AppHeader />
 
       {/* Main Content */}
       <main className="relative z-10 container mx-auto px-4 py-8">
@@ -161,9 +116,10 @@ const News = () => {
                 Ara
               </Button>
             </div>
-            <p className="text-xs text-muted-foreground mt-2">
-              Şu anda görüntülenen: <Badge variant="outline">{symbol}</Badge>
-            </p>
+            <div className="text-xs text-muted-foreground mt-2 flex items-center gap-2">
+              <span>Şu anda görüntülenen:</span>
+              <Badge variant="outline">{symbol}</Badge>
+            </div>
           </CardContent>
         </Card>
 

@@ -6,6 +6,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from datetime import datetime
 import os
+import pandas as pd
 from ml_predictor import MLPredictor
 
 app = Flask(__name__)
@@ -27,6 +28,76 @@ def health_check():
         'model_type': 'Random Forest Classifier' if model_loaded else 'Not Loaded',
         'features': len(predictor.feature_columns) if predictor.feature_columns else 0
     })
+
+@app.route('/api/sentiment-summary', methods=['POST'])
+def sentiment_summary():
+    """
+    CSV'den sentiment özeti döner.
+    Body: {"symbol": "AAPL", "days": 7}
+    """
+    try:
+        data = request.json or {}
+        symbol = data.get('symbol')
+        days = data.get('days', 7)
+
+        if not symbol:
+            return jsonify({'success': False, 'error': 'symbol parametresi gerekli'}), 400
+
+        csv_path = os.path.join('data', 'csv', 'news_with_sentiment.csv')
+        if not os.path.exists(csv_path):
+            return jsonify({'success': True, 'symbol': symbol, 'result': _empty_sentiment()} )
+
+        df = pd.read_csv(csv_path)
+        if df.empty or 'sentiment_score' not in df.columns:
+            return jsonify({'success': True, 'symbol': symbol, 'result': _empty_sentiment()})
+
+        if 'symbol' in df.columns:
+            df = df[df['symbol'] == symbol]
+
+        # Son N gün filtresi
+        if 'published_date' in df.columns:
+            df['published_date'] = pd.to_datetime(df['published_date'], errors='coerce')
+            cutoff = datetime.now() - pd.Timedelta(days=days)
+            df = df[df['published_date'] >= cutoff]
+
+        if df.empty:
+            return jsonify({'success': True, 'symbol': symbol, 'result': _empty_sentiment()})
+
+        sentiments = df['sentiment_score'].dropna()
+        news_count = len(sentiments)
+        positive_count = int((sentiments > 0.05).sum())
+        negative_count = int((sentiments < -0.05).sum())
+        neutral_count = news_count - positive_count - negative_count
+        avg_sentiment = float(sentiments.mean())
+        normalized = (avg_sentiment + 1) / 2
+        recent_headlines = df['title'].dropna().tail(5).tolist() if 'title' in df.columns else []
+
+        return jsonify({
+            'success': True,
+            'symbol': symbol,
+            'result': {
+                'news_count': news_count,
+                'positive_count': positive_count,
+                'negative_count': negative_count,
+                'neutral_count': neutral_count,
+                'avg_sentiment': avg_sentiment,
+                'normalized_sentiment': normalized,
+                'recent_headlines': recent_headlines
+            }
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+def _empty_sentiment():
+    return {
+        'news_count': 0,
+        'positive_count': 0,
+        'negative_count': 0,
+        'neutral_count': 0,
+        'avg_sentiment': 0.0,
+        'normalized_sentiment': 0.0,
+        'recent_headlines': []
+    }
 
 @app.route('/api/predict', methods=['POST'])
 def predict():

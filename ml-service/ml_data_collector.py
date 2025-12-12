@@ -123,7 +123,14 @@ class MLDataCollector:
             return None
     
     def get_news_sentiment(self, symbol, days=7):
-        """Haber duygu analizi yap"""
+        """Haber duygu analizi yap - önce CSV'den oku, yoksa canlı çek"""
+        # Önce CSV'den sentiment verilerini kontrol et
+        csv_sentiment = self._get_sentiment_from_csv(symbol, days)
+        if csv_sentiment is not None:
+            print(f"✅ {symbol} sentiment CSV'den okundu: {csv_sentiment['news_count']} haber")
+            return csv_sentiment
+        
+        print(f"📰 {symbol} için canlı haber çekiliyor...")
         try:
             # NewsAPI kullanarak haberleri al
             news_api_key = '78e1efb0e1964e8fbbf4158f7b9c65f1'
@@ -188,6 +195,53 @@ class MLDataCollector:
         except Exception as e:
             print(f"⚠️ Haber analizi hatası ({symbol}): {e}")
             return self._get_default_sentiment()
+    
+    def _get_sentiment_from_csv(self, symbol, days=7):
+        """CSV'den sentiment verilerini oku"""
+        try:
+            csv_path = 'data/csv/news_with_sentiment.csv'
+            if not os.path.exists(csv_path):
+                return None
+            
+            df = pd.read_csv(csv_path)
+            
+            # Sembole göre filtrele
+            symbol_news = df[df['symbol'] == symbol] if 'symbol' in df.columns else df
+            
+            if symbol_news.empty or 'sentiment_score' not in symbol_news.columns:
+                return None
+            
+            # Son N günlük haberleri al
+            if 'published_date' in symbol_news.columns:
+                symbol_news['published_date'] = pd.to_datetime(symbol_news['published_date'], errors='coerce')
+                cutoff_date = datetime.now() - timedelta(days=days)
+                symbol_news = symbol_news[symbol_news['published_date'] >= cutoff_date]
+            
+            if symbol_news.empty:
+                return None
+            
+            # Sentiment istatistiklerini hesapla
+            sentiments = symbol_news['sentiment_score'].dropna()
+            
+            if len(sentiments) == 0:
+                return None
+            
+            avg_sentiment = sentiments.mean()
+            sentiment_std = sentiments.std() if len(sentiments) > 1 else 0.0
+            positive_ratio = len(sentiments[sentiments > 0.05]) / len(sentiments)
+            negative_ratio = len(sentiments[sentiments < -0.05]) / len(sentiments)
+            
+            return {
+                'sentiment_score': avg_sentiment,
+                'sentiment_std': sentiment_std,
+                'positive_ratio': positive_ratio,
+                'negative_ratio': negative_ratio,
+                'news_count': len(sentiments)
+            }
+            
+        except Exception as e:
+            print(f"⚠️ CSV sentiment okuma hatası ({symbol}): {e}")
+            return None
     
     def _get_default_sentiment(self):
         """Varsayılan duygu değerleri"""

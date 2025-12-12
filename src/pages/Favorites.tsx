@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { BackgroundChart } from "@/components/BackgroundChart";
-import { TrendingUp, BarChart3, Newspaper, LogOut, User, Star, Trash2, RefreshCw } from "lucide-react";
+import { Star, Trash2, RefreshCw, BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { getFavorites, removeFavorite } from "@/services/favoriteService";
 import { toast } from "sonner";
+import { AppHeader } from "@/components/AppHeader";
 
 interface Favorite {
   id: number;
@@ -25,9 +26,8 @@ interface StockQuote {
 }
 
 export default function Favorites() {
-  const location = useLocation();
   const navigate = useNavigate();
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
   const [favorites, setFavorites] = useState<Favorite[]>([]);
   const [quotes, setQuotes] = useState<Record<string, StockQuote>>({});
   const [loading, setLoading] = useState(true);
@@ -93,79 +93,7 @@ export default function Favorites() {
     <div className="min-h-screen bg-background relative overflow-hidden">
       <BackgroundChart />
       
-      {/* Header */}
-      <header className="relative z-10 border-b border-border/50 bg-background/80 backdrop-blur-sm">
-        <div className="container mx-auto px-4 py-6">
-          <div className="flex items-center justify-between">
-            <div
-              className="flex items-center gap-3 cursor-pointer"
-              onClick={() => navigate('/')}
-            >
-              <div className="h-10 w-10 bg-gradient-to-br from-primary to-blue-600 rounded-lg flex items-center justify-center shadow-lg">
-                <TrendingUp className="h-6 w-6 text-primary-foreground" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-green-500 bg-clip-text text-transparent">
-                  Aden Borsa
-                </h1>
-                <p className="text-sm text-muted-foreground">
-                  Profesyonel Borsa Analiz Platformu
-                </p>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-3">
-              <Link to="/">
-                <Button 
-                  variant={location.pathname === "/" ? "default" : "ghost"}
-                  className="gap-2"
-                >
-                  <BarChart3 className="h-4 w-4" />
-                  <span>Hisse Analizi</span>
-                </Button>
-              </Link>
-              <Link to="/favoriler">
-                <Button 
-                  variant={location.pathname === "/favoriler" ? "default" : "ghost"}
-                  className="gap-2"
-                >
-                  <Star className="h-4 w-4" />
-                  <span>Favorilerim</span>
-                </Button>
-              </Link>
-              <Link to="/haberler">
-                <Button 
-                  variant={location.pathname === "/haberler" ? "default" : "ghost"}
-                  className="gap-2"
-                >
-                  <Newspaper className="h-4 w-4" />
-                  <span>Haberler</span>
-                </Button>
-              </Link>
-              
-              <div className="flex items-center gap-2 ml-4 pl-4 border-l border-border">
-                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-card/50">
-                  <User className="h-4 w-4 text-muted-foreground" />
-                  <Link to="/profil" className="text-sm font-medium hover:underline">
-                    {user?.username}
-                  </Link>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={async () => {
-                    await signOut();
-                    navigate('/giris');
-                  }}
-                  title="Çıkış Yap"
-                >
-                  <LogOut className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
+      <AppHeader />
 
       {/* Main Content */}
       <main className="relative z-10 container mx-auto px-4 py-8">

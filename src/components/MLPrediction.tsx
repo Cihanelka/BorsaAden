@@ -323,9 +323,7 @@ export default function MLPrediction({ symbol, onPredictionReceived }: MLPredict
               <span>
                 {prediction.model_type 
                   ? `Model: ${prediction.model_type}${prediction.features_used ? ` (${prediction.features_used} özellik)` : ''}`
-                  : prediction.method === 'ml_model' 
-                  ? 'ML Model' 
-                  : 'Kural Tabanlı'}
+                  : 'ML Model (Random Forest)'}
               </span>
               <span>
                 {prediction.timestamp && new Date(prediction.timestamp).toLocaleTimeString('tr-TR')}

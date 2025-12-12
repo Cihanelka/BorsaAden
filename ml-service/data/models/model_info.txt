@@ -1,5 +1,5 @@
 Model Tipi: Random Forest Classifier
-Eğitim Tarihi: 2025-12-10 18:46:23
+Eğitim Tarihi: 2025-12-10 21:10:56
 Ağaç Sayısı: 400
 Özellik Sayısı: 26
 Sınıflar: AL, SAT, TUT

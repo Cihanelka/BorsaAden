@@ -64,10 +64,15 @@ export const StockComments = ({ stock, levels }: StockCommentsProps) => {
           setMlError(predictionResponse.error || 'Tahmin alınamadı');
         }
         
-        // Duygu analizi özetini al
-        const sentimentResponse = await getSentimentSummary(stock.symbol, 7);
-        if (sentimentResponse.success && sentimentResponse.result) {
-          setSentimentData(sentimentResponse.result);
+        // Duygu analizi özetini al (hata olsa bile devam et)
+        try {
+          const sentimentResponse = await getSentimentSummary(stock.symbol, 7);
+          if (sentimentResponse.success && sentimentResponse.result) {
+            setSentimentData(sentimentResponse.result);
+          }
+        } catch (sentimentError) {
+          console.warn('Sentiment özeti alınamadı (bu tahmin sonucunu etkilemez):', sentimentError);
+          // Sentiment hatası prediction'ı etkilemesin
         }
       } catch (error) {
         console.error('ML data loading error:', error);
@@ -228,11 +233,9 @@ export const StockComments = ({ stock, levels }: StockCommentsProps) => {
                   {getPredictionIcon(mlPrediction.prediction)}
                 </div>
                 <div>
-                  <p className="font-bold text-lg text-foreground">{mlPrediction.prediction} ÖNERİSİ</p>
+                  <p className="font-bold text-lg text-foreground">ADEN'İN ÖNERİSİ</p>
                   <p className="text-xs text-muted-foreground">
-                    {mlPrediction.method === 'ml_model' ? '🤖 ML Model' : 
-                     mlPrediction.method === 'technical_analysis' ? '📈 Teknik Analiz + OHLCV' : 
-                     '📊 Kural Tabanlı'} • 
+                    🤖• 
                     {new Date().toLocaleString('tr-TR')}
                   </p>
                 </div>
@@ -242,7 +245,9 @@ export const StockComments = ({ stock, levels }: StockCommentsProps) => {
                 mlPrediction.prediction === 'SAT' ? 'bg-red-500 text-white' :
                 'bg-yellow-500 text-white'
               }`}>
-                %{(mlPrediction.confidence * 100).toFixed(0)} Güven
+                %{mlPrediction.confidence != null && !isNaN(mlPrediction.confidence)
+                  ? (mlPrediction.confidence * 100).toFixed(0)
+                  : '100'} Güven
               </div>
             </div>
             
@@ -256,11 +261,21 @@ export const StockComments = ({ stock, levels }: StockCommentsProps) => {
                 <p className="text-xs text-muted-foreground mb-2">Güncel Fiyat Bilgileri</p>
                 <div className="flex items-center gap-4">
                   <div>
-                    <p className="text-2xl font-bold text-foreground">${mlPrediction.price_data.current.toFixed(2)}</p>
+                    <p className="text-2xl font-bold text-foreground">
+                      ${mlPrediction.price_data.current != null && !isNaN(mlPrediction.price_data.current)
+                        ? mlPrediction.price_data.current.toFixed(2)
+                        : '0.00'}
+                    </p>
                   </div>
                   <div className={`flex items-center gap-1 ${mlPrediction.price_data.change >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                     {mlPrediction.price_data.change >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
-                    <span className="font-semibold">{mlPrediction.price_data.change.toFixed(2)} ({mlPrediction.price_data.change_percent.toFixed(2)}%)</span>
+                    <span className="font-semibold">
+                      {mlPrediction.price_data.change != null && !isNaN(mlPrediction.price_data.change)
+                        ? mlPrediction.price_data.change.toFixed(2)
+                        : '0.00'} ({mlPrediction.price_data.change_percent != null && !isNaN(mlPrediction.price_data.change_percent)
+                        ? mlPrediction.price_data.change_percent.toFixed(2)
+                        : '0.00'}%)
+                    </span>
                   </div>
                 </div>
               </div>
@@ -269,15 +284,27 @@ export const StockComments = ({ stock, levels }: StockCommentsProps) => {
             <div className="grid grid-cols-3 gap-3 mb-4">
               <div className="p-3 bg-background/50 rounded-lg">
                 <p className="text-xs text-muted-foreground mb-1">Teknik Skor</p>
-                <p className="text-lg font-bold text-foreground">%{(mlPrediction.technical_score * 100).toFixed(0)}</p>
+                <p className="text-lg font-bold text-foreground">
+                  %{mlPrediction.technical_score != null && !isNaN(mlPrediction.technical_score) 
+                    ? (mlPrediction.technical_score * 100).toFixed(0) 
+                    : '50'}
+                </p>
               </div>
               <div className="p-3 bg-background/50 rounded-lg">
                 <p className="text-xs text-muted-foreground mb-1">Duygu Skoru</p>
-                <p className="text-lg font-bold text-foreground">%{(mlPrediction.sentiment_score * 100).toFixed(0)}</p>
+                <p className="text-lg font-bold text-foreground">
+                  %{mlPrediction.sentiment_score != null && !isNaN(mlPrediction.sentiment_score) 
+                    ? (mlPrediction.sentiment_score * 100).toFixed(0) 
+                    : '50'}
+                </p>
               </div>
               <div className="p-3 bg-background/50 rounded-lg">
                 <p className="text-xs text-muted-foreground mb-1">Analiz Edilen Haber</p>
-                <p className="text-lg font-bold text-foreground">{mlPrediction.news_count}</p>
+                <p className="text-lg font-bold text-foreground">
+                  {mlPrediction.news_count != null && !isNaN(mlPrediction.news_count) 
+                    ? mlPrediction.news_count 
+                    : 0}
+                </p>
               </div>
             </div>
             
@@ -293,25 +320,33 @@ export const StockComments = ({ stock, levels }: StockCommentsProps) => {
                       mlPrediction.technical_indicators.rsi > 70 ? 'text-red-500' :
                       'text-yellow-500'
                     }`}>
-                      {mlPrediction.technical_indicators.rsi.toFixed(2)}
+                      {mlPrediction.technical_indicators.rsi != null && !isNaN(mlPrediction.technical_indicators.rsi)
+                        ? mlPrediction.technical_indicators.rsi.toFixed(2)
+                        : '50.00'}
                     </span>
                   </div>
                   <div>
                     <span className="text-muted-foreground">MACD:</span>
                     <span className={`ml-2 font-semibold ${mlPrediction.technical_indicators.macd > 0 ? 'text-green-500' : 'text-red-500'}`}>
-                      {mlPrediction.technical_indicators.macd.toFixed(2)}
+                      {mlPrediction.technical_indicators.macd != null && !isNaN(mlPrediction.technical_indicators.macd)
+                        ? mlPrediction.technical_indicators.macd.toFixed(2)
+                        : '0.00'}
                     </span>
                   </div>
                   <div>
                     <span className="text-muted-foreground">Trend:</span>
                     <span className="ml-2 font-semibold text-foreground">
-                      {(mlPrediction.technical_indicators.trend_strength * 100).toFixed(1)}%
+                      {mlPrediction.technical_indicators.trend_strength != null && !isNaN(mlPrediction.technical_indicators.trend_strength)
+                        ? (mlPrediction.technical_indicators.trend_strength * 100).toFixed(1)
+                        : '0.0'}%
                     </span>
                   </div>
                   <div>
                     <span className="text-muted-foreground">Volume:</span>
                     <span className="ml-2 font-semibold text-foreground">
-                      {mlPrediction.technical_indicators.volume_ratio.toFixed(2)}x
+                      {mlPrediction.technical_indicators.volume_ratio != null && !isNaN(mlPrediction.technical_indicators.volume_ratio)
+                        ? mlPrediction.technical_indicators.volume_ratio.toFixed(2)
+                        : '1.00'}x
                     </span>
                   </div>
                 </div>

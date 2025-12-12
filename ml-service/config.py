@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # API Anahtarları
-FINNHUB_API_KEY = os.getenv('FINNHUB_API_KEY', '')
+FINNHUB_API_KEY = os.getenv('FINNHUB_API_KEY', 'd3f9mj1r01qolknc9hbgd3f9mj1r01qolknc9hc0')
 NEWS_API_KEY = os.getenv('NEWS_API_KEY', '78e1efb0e1964e8fbbf4158f7b9c65f1')
 
 # Veri Klasörleri
@@ -22,6 +22,30 @@ DEFAULT_STOCKS = [
     'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META',
     'TSLA', 'NVDA', 'AMD', 'INTC', 'NFLX'
 ]
+
+# Şirket İsimleri (Google News RSS için daha iyi arama)
+COMPANY_NAMES = {
+    'AAPL': 'Apple',
+    'MSFT': 'Microsoft',
+    'GOOGL': 'Google Alphabet',
+    'AMZN': 'Amazon',
+    'META': 'Meta Facebook',
+    'TSLA': 'Tesla',
+    'NVDA': 'NVIDIA',
+    'AMD': 'AMD',
+    'INTC': 'Intel',
+    'NFLX': 'Netflix',
+    'BABA': 'Alibaba',
+    'JPM': 'JPMorgan Chase',
+    'V': 'Visa',
+    'MA': 'Mastercard',
+    'DIS': 'Disney',
+    'PYPL': 'PayPal',
+    'ADBE': 'Adobe',
+    'CRM': 'Salesforce',
+    'ORCL': 'Oracle',
+    'IBM': 'IBM',
+}
 
 # Haber Toplama Ayarları
 NEWS_LOOKBACK_DAYS = 30

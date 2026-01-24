@@ -14,13 +14,13 @@ timeout /t 3 /nobreak >nul
 echo.
 echo [2/3] 🔧 Express.js Backend başlatılıyor...
 echo Port: 3001
-start "Express Backend" cmd /k "cd server && npm start"
+start "Express Backend" cmd /k "cd backend && npm start"
 timeout /t 3 /nobreak >nul
 
 echo.
 echo [3/3] ⚛️ React Frontend başlatılıyor...
 echo Port: 5173
-start "React Frontend" cmd /k "npm run dev"
+start "React Frontend" cmd /k "cd frontend && npm run dev"
 
 echo.
 echo ============================================================

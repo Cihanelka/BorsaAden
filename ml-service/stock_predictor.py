@@ -153,8 +153,9 @@ class StockPredictor:
             ]
             
             # Mevcut feature'lardan mapping yap
+            sentiment_raw = max(0.0, min(1.0, features.get('sentiment_score', 0.0)))
             feature_mapping = {
-                # Teknik göstergeleri 0-100 ölçeğine çek, etkisini artır
+                # Teknik göstergeleri 0-100 ölçeğine çek
                 'rsi': features.get('rsi_score', 0.5) * 100,
                 'macd': features.get('macd_score', 0.5) * 100,
                 'macd_signal': features.get('macd_score', 0.5) * 100,
@@ -176,8 +177,8 @@ class StockPredictor:
                 'roc': 0.0,
                 'sma_cross': features.get('sma_score', 0.5) * 100,
                 'ema_cross': features.get('sma_score', 0.5) * 100,
-                # Sentiment etkisini normalize et (0..1), teknik ağırlık önde
-                'sentiment_score': max(0.0, min(1.0, features.get('sentiment_score', 0.0))),
+                # Sentiment etkisini teknikle hizalamak için 0-100 ölçeği
+                'sentiment_score': sentiment_raw * 100,
                 'sentiment_std': 0.1,
                 'positive_ratio': features.get('positive_ratio', 0.0),
                 'negative_ratio': features.get('negative_ratio', 0.0),
@@ -215,11 +216,21 @@ class StockPredictor:
             prediction_label = class_names[prediction_idx]
             base_confidence = probabilities[prediction_idx]
 
-            # Güveni artırmak için teknik skoru daha fazla hesaba kat ve taban güveni ez aşırı düşmesin
-            base_conf_clamped = max(base_confidence, 0.4)
-            tech_score_raw = float(features.get('technical_score', 0.5))
-            tech_score_boosted = 0.3 + 0.7 * tech_score_raw  # 0.3-1.0 aralığına çek
-            confidence = 0.5 * base_conf_clamped + 0.5 * tech_score_boosted
+            # Haber sayısı azsa güvene ceza uygula
+            news_count = float(features.get('news_count', 0))
+            news_penalty = 0.1 if news_count < 3 else 0.05 if news_count < 10 else 0.0
+
+            tech_score_raw = float(features.get('technical_score', 0.5))  # 0-1
+            sentiment_raw = max(0.0, min(1.0, features.get('sentiment_score', 0.0)))
+
+            # Denge: model olasılığı %50, teknik %30, duygu %20 (düşük haber varsa ceza)
+            confidence = (
+                0.5 * base_confidence +
+                0.3 * tech_score_raw +
+                0.2 * sentiment_raw
+            ) - news_penalty
+
+            confidence = max(0.0, min(1.0, confidence))
             
             # Düşük güven uyarısı
             confidence_warning = ""

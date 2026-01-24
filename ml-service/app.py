@@ -11,6 +11,7 @@ from data_collector import DataCollector
 from sentiment_analyzer import SentimentAnalyzer
 from technical_analyzer import TechnicalAnalyzer
 from stock_predictor import StockPredictor
+from enhanced_predictor import EnhancedStockPredictor
 
 app = Flask(__name__)
 CORS(app)  # CORS'u etkinleştir
@@ -18,6 +19,13 @@ CORS(app)  # CORS'u etkinleştir
 # Global instance'lar
 collector = DataCollector()
 predictor = StockPredictor()
+enhanced_predictor = EnhancedStockPredictor()
+
+# Try to load enhanced model
+try:
+    enhanced_predictor.load_models()
+except:
+    print("⚠️ Enhanced model not loaded - train it first with train_enhanced_model.py")
 
 def save_sentiment_csv(df):
     """
@@ -537,6 +545,73 @@ def stock_data():
             'error': str(e)
         }), 500
 
+@app.route('/api/predict-enhanced', methods=['POST'])
+def predict_enhanced():
+    """
+    Enhanced prediction endpoint using production-ready ML pipeline
+    
+    Body:
+    {
+        "symbol": "AAPL"
+    }
+    
+    Returns:
+    {
+        "success": true,
+        "prediction": "UP" | "DOWN" | "NEUTRAL",
+        "confidence": 0.85,
+        "probabilities": {
+            "UP": 0.75,
+            "DOWN": 0.10,
+            "NEUTRAL": 0.15
+        },
+        "disclaimer": "This is a statistical prediction, NOT investment advice"
+    }
+    """
+    try:
+        data = request.json
+        symbol = data.get('symbol')
+        
+        if not symbol:
+            return jsonify({
+                'success': False,
+                'error': 'symbol parametresi gerekli'
+            }), 400
+        
+        # Model kontrolü
+        if not enhanced_predictor.trained:
+            return jsonify({
+                'success': False,
+                'error': 'Enhanced model henüz eğitilmedi. Lütfen train_enhanced_model.py çalıştırın'
+            }), 503
+        
+        # Veri çek (minimum 60 gün gerekli - rolling calculations için)
+        print(f"📊 Fetching data for {symbol}...")
+        stock_df = collector.collect_stock_data(symbol, days=90)
+        
+        if stock_df.empty:
+            return jsonify({
+                'success': False,
+                'error': f'{symbol} için veri bulunamadı'
+            }), 404
+        
+        # Tahmin yap
+        result = enhanced_predictor.predict(stock_df)
+        
+        return jsonify({
+            'success': True,
+            **result
+        })
+        
+    except Exception as e:
+        print(f"❌ Enhanced predict hatası: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 if __name__ == '__main__':
     print("\n" + "="*60)
     print("🚀 ML Stock Analysis Service Başlatılıyor")
@@ -546,6 +621,7 @@ if __name__ == '__main__':
     print(f"🔧 Debug: {DEBUG_MODE}")
     print(f"📁 Data Dir: {DATA_DIR}")
     print(f"🤖 Model Loaded: {predictor.model is not None}")
+    print(f"🚀 Enhanced Model Loaded: {enhanced_predictor.trained}")
     print("="*60 + "\n")
     
     app.run(

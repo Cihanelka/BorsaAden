@@ -1,10 +1,17 @@
+/**
+ * Created by: Aden Borsa Team
+ * Created At: 2025
+ * Subject: Hisse senedi yorum (alım-satım görüşü) işlemleri route'ları
+ */
 import express from 'express';
 import { authenticateToken } from './auth.js';
 import db from '../database.js';
 
 const router = express.Router();
 
-// Get comments for a symbol
+/**
+ * Belirtilen hisse senedi için tüm yorumları kullanıcı bilgileriyle birlikte getirir.
+ */
 router.get('/:symbol', (req, res) => {
   const { symbol } = req.params;
 
@@ -43,7 +50,9 @@ router.get('/:symbol', (req, res) => {
   }
 });
 
-// Add comment
+/**
+ * Belirtilen hisse senedi için yeni yorum ekler.
+ */
 router.post('/', authenticateToken, (req, res) => {
   const { symbol, content } = req.body;
 
@@ -88,7 +97,10 @@ router.post('/', authenticateToken, (req, res) => {
   }
 });
 
-// Update comment
+/**
+ * Mevcut yorumu günceller.
+ * Sadece yorumun sahibi düzenleyebilir.
+ */
 router.put('/:id', authenticateToken, (req, res) => {
   const { id } = req.params;
   const { content } = req.body;
@@ -144,7 +156,10 @@ router.put('/:id', authenticateToken, (req, res) => {
   }
 });
 
-// Delete comment
+/**
+ * Yorumu siler.
+ * Sadece yorumun sahibi silebilir.
+ */
 router.delete('/:id', authenticateToken, (req, res) => {
   const { id } = req.params;
 

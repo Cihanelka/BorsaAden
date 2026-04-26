@@ -14,7 +14,7 @@ try:
     TRANSFORMERS_AVAILABLE = True
 except Exception as e:
     print(f"⚠️ Transformers yüklenemedi: {str(e)}")
-    print("ℹ️ Basit sentiment analizi kullanılacak")
+    print("❌ Basit sentiment fallback kapalı. Model tabanlı sentiment zorunlu.")
     TRANSFORMERS_AVAILABLE = False
 
 class SentimentAnalyzer:
@@ -22,15 +22,28 @@ class SentimentAnalyzer:
     
     def __init__(self):
         """Duygu analizi modelini yükler"""
-        print("🤖 Basit sentiment analizi kullanılacak (BERT devre dışı)")
-        
-        # BERT modelini devre dışı bırak, sadece basit analiz kullan
+        if not TRANSFORMERS_AVAILABLE:
+            raise RuntimeError(
+                "Transformers/PyTorch yüklenemedi. Basit sentiment fallback kapalı. "
+                "Lütfen transformer bağımlılıklarını kurun."
+            )
+
         self.sentiment_pipeline = None
         self.model = None
         self.tokenizer = None
-        
-        # BERT yüklemeyi atla
-        print("✅ Basit kelime tabanlı sentiment analizi hazır")
+
+        print(f"🤖 Sentiment modeli yükleniyor: {SENTIMENT_MODEL}")
+        self.tokenizer = AutoTokenizer.from_pretrained(SENTIMENT_MODEL)
+        self.model = AutoModelForSequenceClassification.from_pretrained(SENTIMENT_MODEL)
+
+        device = 0 if torch.cuda.is_available() else -1
+        self.sentiment_pipeline = pipeline(
+            "sentiment-analysis",
+            model=self.model,
+            tokenizer=self.tokenizer,
+            device=device
+        )
+        print("✅ Transformer tabanlı sentiment analizi hazır")
     
     def clean_text(self, text):
         """
@@ -64,9 +77,8 @@ class SentimentAnalyzer:
         if not text:
             return {'label': 'neutral', 'score': 0.5}
         
-        # Eğer model yüklü değilse basit analiz kullan
         if self.sentiment_pipeline is None:
-            return self._simple_sentiment(text)
+            raise RuntimeError("Sentiment pipeline hazır değil")
         
         try:
             # Metni maksimum token uzunluğuna göre kes
@@ -75,57 +87,6 @@ class SentimentAnalyzer:
             
         except Exception as e:
             print(f"⚠️ Sentiment analiz hatası: {str(e)}")
-            return self._simple_sentiment(text)
-    
-    def _simple_sentiment(self, text):
-        """
-        Geliştirilmiş kelime tabanlı sentiment analizi
-        İngilizce ve Türkçe finansal kelimeler
-        """
-        # Pozitif kelimeler (İngilizce + Türkçe)
-        positive_words = [
-            # İngilizce
-            'gain', 'gains', 'profit', 'profits', 'rise', 'rises', 'rose', 'up', 'surge', 'surges',
-            'growth', 'grow', 'increase', 'increases', 'high', 'higher', 'beat', 'beats',
-            'strong', 'strength', 'positive', 'bull', 'bullish', 'rally', 'rallies',
-            'success', 'successful', 'advance', 'advances', 'boost', 'boosts', 'upgraded',
-            'outperform', 'outperforms', 'exceed', 'exceeds', 'soar', 'soars',
-            # Türkçe
-            'kazanç', 'kâr', 'yükseliş', 'artış', 'büyüme', 'güçlü', 'pozitif', 
-            'başarı', 'başarılı', 'iyi', 'güzel', 'harika', 'mükemmel', 'rekor'
-        ]
-        
-        # Negatif kelimeler (İngilizce + Türkçe)
-        negative_words = [
-            # İngilizce
-            'loss', 'losses', 'lose', 'lost', 'fall', 'falls', 'fell', 'drop', 'drops', 'dropped',
-            'decline', 'declines', 'decrease', 'decreases', 'low', 'lower', 'weak', 'weakness',
-            'negative', 'bear', 'bearish', 'miss', 'misses', 'missed', 'risk', 'risks',
-            'concern', 'concerns', 'worry', 'worries', 'downgrade', 'downgrades', 'plunge',
-            'tumble', 'tumbles', 'underperform', 'underperforms', 'slump', 'slumps',
-            # Türkçe
-            'kayıp', 'zarar', 'düşüş', 'azalış', 'zayıf', 'negatif', 'risk',
-            'endişe', 'kötü', 'düşük', 'gerileme', 'çöküş'
-        ]
-        
-        text_lower = text.lower()
-        
-        # Kelimeleri say
-        pos_count = sum(1 for word in positive_words if word in text_lower)
-        neg_count = sum(1 for word in negative_words if word in text_lower)
-        
-        # Skor hesapla
-        total = pos_count + neg_count
-        if total == 0:
-            return {'label': 'neutral', 'score': 0.5}
-        
-        pos_ratio = pos_count / total
-        
-        if pos_ratio > 0.6:
-            return {'label': 'positive', 'score': min(0.5 + pos_ratio * 0.3, 0.9)}
-        elif pos_ratio < 0.4:
-            return {'label': 'negative', 'score': min(0.5 + (1 - pos_ratio) * 0.3, 0.9)}
-        else:
             return {'label': 'neutral', 'score': 0.5}
     
     def analyze_news_batch(self, news_df):
@@ -224,12 +185,13 @@ class SentimentAnalyzer:
         
         # Son N günlük haberleri al
         if 'datetime' in symbol_news.columns:
-            cutoff_date = datetime.now() - timedelta(days=days)
+            cutoff_date = pd.Timestamp.utcnow().tz_localize(None) - timedelta(days=days)
             try:
                 if np.issubdtype(symbol_news['datetime'].dtype, np.number):
-                    symbol_news['datetime'] = pd.to_datetime(symbol_news['datetime'], unit='s', errors='coerce')
+                    symbol_news['datetime'] = pd.to_datetime(symbol_news['datetime'], unit='s', errors='coerce', utc=True)
                 else:
-                    symbol_news['datetime'] = pd.to_datetime(symbol_news['datetime'], errors='coerce')
+                    symbol_news['datetime'] = pd.to_datetime(symbol_news['datetime'], errors='coerce', utc=True)
+                symbol_news['datetime'] = symbol_news['datetime'].dt.tz_localize(None)
                 symbol_news = symbol_news[symbol_news['datetime'] >= cutoff_date]
             except Exception as e:
                 print(f"⚠️ datetime dönüştürme hatası: {e}")

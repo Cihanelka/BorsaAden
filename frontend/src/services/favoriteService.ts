@@ -1,3 +1,8 @@
+/**
+ * Created by: Aden Borsa Team
+ * Created At: 2025
+ * Subject: Favori hisse API işlemleri için servis sarıcısı
+ */
 import { favoritesAPI } from '@/lib/api';
 
 export const getFavorites = () => favoritesAPI.getAll();

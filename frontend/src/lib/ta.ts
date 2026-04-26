@@ -1,6 +1,11 @@
-// src/lib/ta.ts
+/**
+ * Created by: Aden Borsa Team
+ * Created At: 2025
+ * Subject: Teknik analiz yardımcı fonksiyonları - pivot, EMA, RSI, ATR, tampon bölge
+ */
 export type Bar = { datetime:string; open:number; high:number; low:number; close:number; volume:number };
 
+/** Ham API verisini Bar dizisine dönüştürür ve tarihe göre eskiden yeniye sıralar */
 export function toBars(values: any[]): Bar[] {
   return values.map(v => ({
     datetime: v.datetime,
@@ -8,7 +13,7 @@ export function toBars(values: any[]): Bar[] {
   })).sort((a,b)=> new Date(a.datetime).getTime()-new Date(b.datetime).getTime());
 }
 
-// Klasik Pivot (önceki gün)
+/** Önceki günün yüksek/düşük/kapanış değerlerine göre klasik pivot destek-direnç seviyelerini hesaplar */
 export function pivotLevels(prevHigh:number, prevLow:number, prevClose:number) {
   const P = (prevHigh + prevLow + prevClose) / 3;
   const R1 = 2*P - prevLow;
@@ -20,7 +25,7 @@ export function pivotLevels(prevHigh:number, prevLow:number, prevClose:number) {
   return { P, R1, S1, R2, S2, R3, S3 };
 }
 
-// Fibonacci Pivot
+/** Fibonacci oranı (0.382, 0.618, 1.000) kullanarak pivot destek-direnç seviyelerini hesaplar */
 export function fibonacciPivot(prevHigh:number, prevLow:number, prevClose:number) {
   const P = (prevHigh + prevLow + prevClose) / 3;
   const range = prevHigh - prevLow;
@@ -33,7 +38,7 @@ export function fibonacciPivot(prevHigh:number, prevLow:number, prevClose:number
   return { P, R1, S1, R2, S2, R3, S3 };
 }
 
-// Camarilla Pivot
+/** Camarilla formülü (1.1 katsayısı) ile kısa vadeli pivot seviyelerini hesaplar */
 export function camarillaPivot(prevHigh:number, prevLow:number, prevClose:number) {
   const range = prevHigh - prevLow;
   const P = (prevHigh + prevLow + prevClose) / 3;
@@ -46,7 +51,7 @@ export function camarillaPivot(prevHigh:number, prevLow:number, prevClose:number
   return { P, R1, S1, R2, S2, R3, S3 };
 }
 
-// Woodie's Pivot
+/** Woodie yöntemiyle pivot hesaplar; bugünün açılış fiyatını 2 kat ağırlıklandırır */
 export function woodiesPivot(prevHigh:number, prevLow:number, prevClose:number, todayOpen:number) {
   const P = (prevHigh + prevLow + 2*todayOpen) / 4;
   const R1 = 2*P - prevLow;
@@ -58,7 +63,7 @@ export function woodiesPivot(prevHigh:number, prevLow:number, prevClose:number, 
   return { P, R1, S1, R2, S2, R3, S3 };
 }
 
-// DeMark's Pivot
+/** DeMark yöntemiyle pivot hesaplar; açılış-kapanış ilişkisine göre farklı X değeri seçer */
 export function demarkPivot(prevHigh:number, prevLow:number, prevClose:number, todayOpen:number) {
   let X: number;
   if (todayOpen < prevClose) {
@@ -74,7 +79,7 @@ export function demarkPivot(prevHigh:number, prevLow:number, prevClose:number, t
   return { P, R1, S1, R2: NaN, S2: NaN, R3: NaN, S3: NaN };
 }
 
-// Tüm pivot yöntemlerini hesapla
+/** Tüm pivot yöntemlerini (Classic, Fibonacci, Camarilla, Woodie's, DeMark's) tek çağrıda hesaplar */
 export function calculateAllPivots(prevHigh:number, prevLow:number, prevClose:number, todayOpen:number) {
   return {
     classic: pivotLevels(prevHigh, prevLow, prevClose),
@@ -85,7 +90,7 @@ export function calculateAllPivots(prevHigh:number, prevLow:number, prevClose:nu
   };
 }
 
-// Rolling destek/direnç (w gün)
+/** Son w bar içindeki min-low ve max-high değerlerini rolling destek/direnç olarak döndürür */
 export function rollingLevels(bars: Bar[], w=20) {
   if (bars.length < w) return { support: NaN, resistance: NaN };
   const last = bars.slice(-w);
@@ -94,7 +99,7 @@ export function rollingLevels(bars: Bar[], w=20) {
   return { support, resistance };
 }
 
-// EMA basit
+/** Exponential Moving Average (EMA) hesaplar; çözümleme faktörü k = 2/(span+1) */
 export function ema(series:number[], span:number) {
   const k = 2/(span+1);
   let e = series[0];
@@ -103,7 +108,10 @@ export function ema(series:number[], span:number) {
   return out;
 }
 
-// RSI(14) basit
+/**
+ * Wilder yöntemiyle RSI (Relative Strength Index) hesaplar.
+ * 70 üstesi aşırı alım, 30 altı aşırı satım bölgesidir.
+ */
 export function rsi(closes:number[], period=14) {
   if (closes.length <= period) return NaN;
   const gains:number[] = [], losses:number[] = [];
@@ -111,27 +119,22 @@ export function rsi(closes:number[], period=14) {
     const ch = closes[i]-closes[i-1];
     gains.push(Math.max(ch,0)); losses.push(Math.max(-ch,0));
   }
-  const avg = (arr:number[],n:number, iEnd:number) =>
-    arr.slice(iEnd-n,iEnd).reduce((a,b)=>a+b,0)/n;
 
-  let rs = avg(gains, period, period) / Math.max(avg(losses, period, period), 1e-9);
-  let r = 100 - 100/(1+rs);
-  for (let i=period+1;i<gains.length;i++){
-    const prevAvgGain = (rs * avg(losses,1,i) + gains[i]) // not exact Welles Wilder, good enough
-    const prevAvgLoss = (avg(losses,1,i) + losses[i])
-  }
-  // Minimalist: son kapanışa göre Wilder yaklaşımı:
+  // Wilder smoothing ile ortalama kazanç/kayıp hesapla
   let ag = gains.slice(0,period).reduce((a,b)=>a+b,0)/period;
   let al = losses.slice(0,period).reduce((a,b)=>a+b,0)/period;
   for (let i=period;i<gains.length;i++){
     ag = (ag*(period-1)+gains[i])/period;
     al = (al*(period-1)+losses[i])/period;
   }
-  rs = ag / Math.max(al,1e-9);
+  const rs = ag / Math.max(al,1e-9);
   return 100 - 100/(1+rs);
 }
 
-// ATR (Average True Range) - Volatilite ölçümü
+/**
+ * ATR (Average True Range) hesaplar.
+ * Volatilite ölçüsü olarak tampon bölge toleransına girdisi için kullanılır.
+ */
 export function atr(bars: Bar[], period=14) {
   if (bars.length < period+1) return NaN;
   const trueRanges: number[] = [];
@@ -161,7 +164,10 @@ export function atr(bars: Bar[], period=14) {
   return atrValue;
 }
 
-// Tampon bölge hesaplama - Çoklu yöntem
+/**
+ * Destek ve direnç seviyeleri etrafındaki tampon bölgeleri hesaplar.
+ * ATR ve yüzdelik toleransı dengeleyerek optimal alım-satım bölgeleri üretir.
+ */
 export function calculateBufferZone(
   bars: Bar[], 
   supportLevel: number, 

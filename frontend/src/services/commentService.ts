@@ -1,3 +1,8 @@
+/**
+ * Created by: Aden Borsa Team
+ * Created At: 2025
+ * Subject: Yorum API işlemleri için servis sarıcısı
+ */
 import { commentsAPI } from '@/lib/api';
 
 export const getComments = (symbol: string) => commentsAPI.getBySymbol(symbol);

@@ -1,9 +1,14 @@
+/**
+ * Created by: Aden Borsa Team
+ * Created At: 2025
+ * Subject: Python ML servisine proxy görevi yapan route'lar (tahmin, analiz, sentiment)
+ */
 import express from 'express';
 import fetch from 'node-fetch';
 
 const router = express.Router();
 
-// Python ML servisinin URL'i
+// Python ML servisinin adresi
 const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:5000';
 
 /**
@@ -109,9 +114,10 @@ router.post('/predict', async (req, res) => {
     res.json(data);
   } catch (error) {
     console.error('ML predict error:', error);
-    res.status(500).json({
+    const isServiceDown = error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND';
+    res.status(isServiceDown ? 503 : 500).json({
       success: false,
-      error: error.message
+      error: isServiceDown ? 'ML servisi çalışmıyor. Lütfen başlatın: python ml-service/app.py' : error.message
     });
   }
 });
@@ -274,9 +280,44 @@ router.post('/predict-enhanced', async (req, res) => {
     res.json(data);
   } catch (error) {
     console.error('ML predict-enhanced error:', error);
-    res.status(500).json({
+    const isServiceDown = error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND';
+    res.status(isServiceDown ? 503 : 500).json({
       success: false,
-      error: error.message
+      error: isServiceDown ? 'ML servisi çalışmıyor. Lütfen başlatın: python ml-service/app.py' : error.message
+    });
+  }
+});
+
+/**
+ * Ensemble ML tahmin (10 model, en yüksek confidence)
+ * POST /api/ml/predict-ensemble
+ * Body: { symbol: "AAPL" }
+ */
+router.post('/predict-ensemble', async (req, res) => {
+  try {
+    const { symbol } = req.body;
+
+    if (!symbol) {
+      return res.status(400).json({
+        success: false,
+        error: 'symbol parametresi gerekli'
+      });
+    }
+
+    const response = await fetch(`${ML_SERVICE_URL}/api/predict-ensemble`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ symbol })
+    });
+
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    console.error('ML predict-ensemble error:', error);
+    const isServiceDown = error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND';
+    res.status(isServiceDown ? 503 : 500).json({
+      success: false,
+      error: isServiceDown ? 'ML servisi çalışmıyor. Lütfen başlatın: python ml-service/app.py' : error.message
     });
   }
 });

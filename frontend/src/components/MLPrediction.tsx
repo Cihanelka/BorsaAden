@@ -39,6 +39,12 @@ interface PredictionResult {
   news_count?: number;
   method?: string;
   timestamp?: string;
+  // Ensemble alanları
+  best_model?: string;
+  best_model_backtest_f1?: number;
+  all_models?: Record<string, { prediction: string; confidence: number; backtest_f1: number }>;
+  total_models?: number;
+  sentiment_impact?: string;
   technical_details?: {
     signal: string;
     score: number;
@@ -67,24 +73,28 @@ export default function MLPrediction({ symbol, onPredictionReceived }: MLPredict
   const getPrediction = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/ml/predict`, {
+      // Önce ensemble dene
+      let response = await fetch(`${API_BASE_URL}/ml/predict-ensemble`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          symbol: symbol,
-          use_cached_data: true,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ symbol }),
       });
+      let data = await response.json();
 
-      const data = await response.json();
+      if (!data.success) {
+        // Ensemble yoksa klasik predict'e düş
+        response = await fetch(`${API_BASE_URL}/ml/predict`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ symbol, use_cached_data: true }),
+        });
+        data = await response.json();
+      }
 
       if (data.success) {
-        setPrediction(data.result);
-        if (onPredictionReceived) {
-          onPredictionReceived(data.result);
-        }
+        const result = data.result || data;
+        setPrediction(result);
+        if (onPredictionReceived) onPredictionReceived(result);
         toast.success('Tahmin başarıyla alındı!');
       } else {
         toast.error(data.error || 'Tahmin alınamadı');
@@ -99,27 +109,37 @@ export default function MLPrediction({ symbol, onPredictionReceived }: MLPredict
 
   const getPredictionColor = (pred: string) => {
     switch (pred) {
+      case 'UP':
       case 'AL':
         return 'bg-green-500 hover:bg-green-600';
+      case 'DOWN':
       case 'SAT':
         return 'bg-red-500 hover:bg-red-600';
-      case 'TUT':
-        return 'bg-yellow-500 hover:bg-yellow-600';
       default:
-        return 'bg-gray-500';
+        return 'bg-yellow-500 hover:bg-yellow-600';
+    }
+  };
+
+  const getPredictionLabel = (pred: string, predDisplay?: string): string => {
+    if (predDisplay) return predDisplay;
+    switch (pred) {
+      case 'UP': return 'YÜKSELEBİLİR';
+      case 'DOWN': return 'DÜŞEBİLİR';
+      case 'NEUTRAL': return 'SABİT KALABİLİR';
+      default: return pred;
     }
   };
 
   const getPredictionIcon = (pred: string) => {
     switch (pred) {
+      case 'UP':
       case 'AL':
         return <TrendingUp className="w-5 h-5" />;
+      case 'DOWN':
       case 'SAT':
         return <TrendingDown className="w-5 h-5" />;
-      case 'TUT':
-        return <Minus className="w-5 h-5" />;
       default:
-        return null;
+        return <Minus className="w-5 h-5" />;
     }
   };
 
@@ -128,10 +148,10 @@ export default function MLPrediction({ symbol, onPredictionReceived }: MLPredict
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Brain className="w-5 h-5" />
-          Random Forest ML Tahmini
+          Ensemble ML Tahmini
         </CardTitle>
         <CardDescription>
-          18 özellik (Teknik göstergeler + Haber duygu analizi) ile makine öğrenmesi tahmini
+          15+ model ile ensemble tahmin (Teknik göstergeler öncelikli, %2 haber etkisi)
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -161,7 +181,7 @@ export default function MLPrediction({ symbol, onPredictionReceived }: MLPredict
                 {getPredictionIcon(prediction.prediction)}
                 <div>
                   <p className="text-sm text-muted-foreground">Öneri</p>
-                  <p className="text-2xl font-bold">{prediction.prediction}</p>
+                  <p className="text-2xl font-bold">{getPredictionLabel(prediction.prediction, (prediction as any).prediction_display)}</p>
                 </div>
               </div>
               <Badge className={getPredictionColor(prediction.prediction)}>
@@ -324,9 +344,11 @@ export default function MLPrediction({ symbol, onPredictionReceived }: MLPredict
             {/* Metod Bilgisi */}
             <div className="flex items-center justify-between text-xs text-muted-foreground">
               <span>
-                {prediction.model_type 
+                {prediction.method === 'ensemble'
+                  ? `Ensemble (${prediction.best_model || 'best model'})`
+                  : prediction.model_type 
                   ? `Model: ${prediction.model_type}${prediction.features_used ? ` (${prediction.features_used} özellik)` : ''}`
-                  : 'ML Model (Random Forest)'}
+                  : 'ML Model'}
               </span>
               <span>
                 {prediction.timestamp && new Date(prediction.timestamp).toLocaleTimeString('tr-TR')}

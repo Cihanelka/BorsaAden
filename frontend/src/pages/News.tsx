@@ -118,7 +118,9 @@ const News = () => {
             </div>
             <div className="text-xs text-muted-foreground mt-2 flex items-center gap-2">
               <span>Şu anda görüntülenen:</span>
-              <Badge variant="outline">{symbol}</Badge>
+              <span className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold">
+                {symbol}
+              </span>
             </div>
           </CardContent>
         </Card>

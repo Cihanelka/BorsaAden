@@ -1,10 +1,17 @@
+/**
+ * Created by: Aden Borsa Team
+ * Created At: 2025
+ * Subject: Kullanıcı favori hisse senedi işlemleri route'ları
+ */
 import express from 'express';
 import { authenticateToken } from './auth.js';
 import db from '../database.js';
 
 const router = express.Router();
 
-// Get user's favorites
+/**
+ * Oturum açmış kullanıcının tüm favori hisselerini getirir.
+ */
 router.get('/', authenticateToken, (req, res) => {
   try {
     const favorites = db.prepare(
@@ -18,7 +25,10 @@ router.get('/', authenticateToken, (req, res) => {
   }
 });
 
-// Add favorite
+/**
+ * Kullanıcının favorilerine yeni bir hisse ekler.
+ * Aynı hisse zaten varsa hata döner (UNIQUE constraint).
+ */
 router.post('/', authenticateToken, (req, res) => {
   const { symbol, stockName } = req.body;
 
@@ -44,7 +54,9 @@ router.post('/', authenticateToken, (req, res) => {
   }
 });
 
-// Remove favorite
+/**
+ * Kullanıcının favorilerinden belirtilen sembolü kaldırır.
+ */
 router.delete('/:symbol', authenticateToken, (req, res) => {
   const { symbol } = req.params;
 
@@ -64,7 +76,9 @@ router.delete('/:symbol', authenticateToken, (req, res) => {
   }
 });
 
-// Check if favorite
+/**
+ * Belirtilen hissenin kullanıcının favorilerinde olup olmadığını kontrol eder.
+ */
 router.get('/check/:symbol', authenticateToken, (req, res) => {
   const { symbol } = req.params;
 

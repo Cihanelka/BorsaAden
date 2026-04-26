@@ -12,6 +12,7 @@ from sentiment_analyzer import SentimentAnalyzer
 from technical_analyzer import TechnicalAnalyzer
 from stock_predictor import StockPredictor
 from enhanced_predictor import EnhancedStockPredictor
+from ensemble_predictor import EnsembleStockPredictor
 
 app = Flask(__name__)
 CORS(app)  # CORS'u etkinleştir
@@ -20,12 +21,19 @@ CORS(app)  # CORS'u etkinleştir
 collector = DataCollector()
 predictor = StockPredictor()
 enhanced_predictor = EnhancedStockPredictor()
+ensemble_predictor = EnsembleStockPredictor()
 
 # Try to load enhanced model
 try:
     enhanced_predictor.load_models()
 except:
     print("⚠️ Enhanced model not loaded - train it first with train_enhanced_model.py")
+
+# Try to load ensemble model
+try:
+    ensemble_predictor.load_models()
+except:
+    print("⚠️ Ensemble model not loaded - train it first with train_ensemble.py")
 
 def save_sentiment_csv(df):
     """
@@ -612,6 +620,65 @@ def predict_enhanced():
             'error': str(e)
         }), 500
 
+@app.route('/api/predict-ensemble', methods=['POST'])
+def predict_ensemble():
+    """
+    Ensemble prediction: 10 model, en yüksek confidence score ile tahmin
+    
+    Body:
+    {
+        "symbol": "AAPL"
+    }
+    """
+    try:
+        data = request.json
+        symbol = data.get('symbol')
+
+        if not symbol:
+            return jsonify({'success': False, 'error': 'symbol parametresi gerekli'}), 400
+
+        if not ensemble_predictor.trained:
+            loaded = ensemble_predictor.load_models()
+            if not loaded:
+                return jsonify({
+                    'success': False,
+                    'error': 'Ensemble model henüz eğitilmedi. Lütfen train_ensemble.py çalıştırın'
+                }), 503
+
+        # Hisse verisi çek
+        stock_df = collector.collect_stock_data(symbol, days=120)
+        if stock_df.empty:
+            return jsonify({'success': False, 'error': f'{symbol} için veri bulunamadı'}), 404
+
+        # Haber verisi
+        news_df = None
+        news_csv = os.path.join(CSV_DIR, 'news_with_sentiment.csv')
+        if os.path.exists(news_csv):
+            temp_df = pd.read_csv(news_csv)
+            if 'symbol' in temp_df.columns:
+                temp_df = temp_df[temp_df['symbol'] == symbol]
+            if not temp_df.empty:
+                news_df = temp_df
+
+        if news_df is None or news_df.empty:
+            company_name = COMPANY_NAMES.get(symbol)
+            raw_news = collector.collect_company_news(symbol, days=3, company_name=company_name)
+            if not raw_news.empty:
+                analyzer = SentimentAnalyzer()
+                news_df = analyzer.analyze_news_batch(raw_news)
+                save_sentiment_csv(news_df)
+
+        result = ensemble_predictor.predict(stock_df, news_df=news_df, symbol=symbol)
+
+        return jsonify({'success': True, **result})
+
+    except Exception as e:
+        print(f"❌ Ensemble predict hatası: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 if __name__ == '__main__':
     print("\n" + "="*60)
     print("🚀 ML Stock Analysis Service Başlatılıyor")
@@ -622,6 +689,7 @@ if __name__ == '__main__':
     print(f"📁 Data Dir: {DATA_DIR}")
     print(f"🤖 Model Loaded: {predictor.model is not None}")
     print(f"🚀 Enhanced Model Loaded: {enhanced_predictor.trained}")
+    print(f"🎯 Ensemble Model Loaded: {ensemble_predictor.trained} ({len(ensemble_predictor.models)} models)")
     print("="*60 + "\n")
     
     app.run(

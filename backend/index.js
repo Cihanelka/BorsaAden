@@ -1,3 +1,8 @@
+/**
+ * Created by: Aden Borsa Team
+ * Created At: 2025
+ * Subject: Express API sunucusu - route tanımlamaları ve middleware yapılandırması
+ */
 import express from 'express';
 import cors from 'cors';
 import fetch from 'node-fetch';
@@ -24,9 +29,13 @@ app.use('/api/favorites', favoritesRoutes);
 app.use('/api/comments', commentsRoutes);
 app.use('/api/ml', mlRoutes);
 
-// News API proxy (existing)
+// NewsAPI anahtarı
 const NEWS_API_KEY = '78e1efb0e1964e8fbbf4158f7b9c65f1';
 
+/**
+ * Türkiye iş haberleri proxy endpoint'i.
+ * Frontend CORS kısıtlamasını aşmak için NewsAPI isteklerini sunucu üzerinden iletir.
+ */
 app.get('/api/news', async (req, res) => {
   try {
     const response = await fetch(
@@ -45,7 +54,9 @@ app.get('/api/news', async (req, res) => {
   }
 });
 
-// Health check
+/**
+ * Sunucu sağlık kontrolü endpoint'i.
+ */
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Aden Borsa API is running' });
 });

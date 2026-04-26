@@ -1,3 +1,8 @@
+/**
+ * Created by: Aden Borsa Team
+ * Created At: 2025
+ * Subject: SQLite veritabanı bağlantısı ve şema başlatma
+ */
 import Database from 'better-sqlite3';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
@@ -8,10 +13,13 @@ const __dirname = dirname(__filename);
 const dbPath = join(__dirname, '..', 'database', 'aden-borsa.db');
 const db = new Database(dbPath);
 
-// Enable foreign keys
+// Foreign key kısıtlamalarını aktif et
 db.pragma('foreign_keys = ON');
 
-// Initialize database schema
+/**
+ * Veritabanı tablolarını ve indekslerini oluşturur.
+ * Uygulama her başlatıldığında çağrılır; IF NOT EXISTS sayesinde mevcut verilere dokunmaz.
+ */
 export function initDatabase() {
   // Users table
   db.exec(`

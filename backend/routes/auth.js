@@ -1,14 +1,21 @@
+/**
+ * Created by: Aden Borsa Team
+ * Created At: 2025
+ * Subject: Kullanıcı kimlik doğrulama route'ları (kayıt, giriş, profil, şifre)
+ */
 import express from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { body, validationResult } from 'express-validator';
 import db from '../database.js';
-import { Console } from 'console';
 
 const router = express.Router();
 const JWT_SECRET = 'aden-borsa-secret-key-2025'; // Production'da .env'den alın
 
-// Register
+/**
+ * Yeni kullanıcı kaydı oluşturur.
+ * Email ve kullanıcı adı benzersizliğini kontrol edip şifreyi hashleyerek veritabanına kaydeder.
+ */
 router.post('/register',
   body('email').isEmail(),
   body('username').isLength({ min: 3 }),
@@ -23,22 +30,18 @@ router.post('/register',
     const { email, username, password, fullName, profession } = req.body;
 
     try {
-      // Check if email exists
       const existingEmail = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
       if (existingEmail) {
         return res.status(400).json({ error: 'Bu email zaten kayıtlı' });
       }
 
-      // Check if username exists
       const existingUsername = db.prepare('SELECT id FROM users WHERE username = ?').get(username);
       if (existingUsername) {
         return res.status(400).json({ error: 'Bu kullanıcı adı zaten alınmış' });
       }
 
-      // Hash password
       const hashedPassword = await bcrypt.hash(password, 10);
 
-      // Insert user
       const result = db.prepare(
         'INSERT INTO users (email, username, password, full_name, profession) VALUES (?, ?, ?, ?, ?)'
       ).run(email, username, hashedPassword, fullName, profession);
@@ -51,9 +54,7 @@ router.post('/register',
         profession: profession
       };
 
-      // Generate token
       const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '7d' });
-
       res.json({ user, token });
     } catch (error) {
       console.error('Register error:', error);
@@ -62,13 +63,15 @@ router.post('/register',
   }
 );
 
-// Login
+/**
+ * Kullanıcı girişi yapar.
+ * Email ve şifreyi doğrulayıp JWT token üretir.
+ */
 router.post('/login',
   body('email').isEmail(),
   body('password').notEmpty(),
   async (req, res) => {
     const errors = validationResult(req);
-  
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
     }
@@ -76,24 +79,18 @@ router.post('/login',
     const { email, password } = req.body;
 
     try {
-      // Find user
       const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
       if (!user) {
         return res.status(401).json({ error: 'Email veya şifre hatalı' });
       }
 
-      // Check password
       const isValid = await bcrypt.compare(password, user.password);
       if (!isValid) {
         return res.status(401).json({ error: 'Email veya şifre hatalı' });
       }
 
-      // Generate token
       const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '7d' });
-
-      // Remove password from response
       delete user.password;
-
       res.json({ user, token });
     } catch (error) {
       console.error('Login error:', error);
@@ -102,12 +99,14 @@ router.post('/login',
   }
 );
 
-// Get current user
+/**
+ * Token ile doğrulanmış mevcut kullanıcı bilgilerini döndürür.
+ */
 router.get('/me', authenticateToken, (req, res) => {
   try {
     const user = db.prepare('SELECT id, email, username, full_name, profession, created_at FROM users WHERE id = ?')
       .get(req.userId);
-    
+
     if (!user) {
       return res.status(404).json({ error: 'Kullanıcı bulunamadı' });
     }
@@ -119,7 +118,10 @@ router.get('/me', authenticateToken, (req, res) => {
   }
 });
 
-// Middleware to authenticate token
+/**
+ * JWT token doğrulama middleware'i.
+ * Authorization header'daki Bearer token'ı çözümleyip userId'yi request'e ekler.
+ */
 export function authenticateToken(req, res, next) {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
@@ -136,28 +138,29 @@ export function authenticateToken(req, res, next) {
     next();
   });
 }
-// Update profile (kullanıcı adı + meslek)
+
+/**
+ * Kullanıcı adı ve meslek bilgisini günceller.
+ * Kullanıcı adı çakışmasını önlemek için benzersizlik kontrolü yapar.
+ */
 router.put('/update-profile', authenticateToken, (req, res) => {
   const { username, profession } = req.body;
-  
+
   if (!username || username.length < 3) {
     return res.status(400).json({ error: 'Kullanıcı adı en az 3 karakter olmalıdır' });
   }
 
   try {
-    // Aynı kullanıcı adı kontrolü
     const existingUser = db.prepare('SELECT id FROM users WHERE username = ? AND id != ?')
       .get(username, req.userId);
-      
+
     if (existingUser) {
       return res.status(400).json({ error: 'Bu kullanıcı adı zaten kullanılıyor' });
     }
 
-    // Kullanıcı adı ve meslek bilgilerini güncelle
     db.prepare('UPDATE users SET username = ?, profession = ? WHERE id = ?')
       .run(username, profession || null, req.userId);
 
-    // Güncellenmiş kullanıcı bilgilerini döndür
     const updatedUser = db.prepare('SELECT id, email, username, full_name, profession, created_at FROM users WHERE id = ?')
       .get(req.userId);
 
@@ -168,7 +171,10 @@ router.put('/update-profile', authenticateToken, (req, res) => {
   }
 });
 
-// Şifre değiştirme (ayrı endpoint)
+/**
+ * Kullanıcının şifresini değiştirir.
+ * Mevcut şifreyi doğrulayıp yeni şifreyi hashleyerek günceller.
+ */
 router.put('/change-password', authenticateToken, async (req, res) => {
   const { currentPassword, newPassword } = req.body;
 
@@ -181,9 +187,7 @@ router.put('/change-password', authenticateToken, async (req, res) => {
   }
 
   try {
-    // Mevcut şifreyi kontrol et
-    const user = db.prepare('SELECT password FROM users WHERE id = ?')
-      .get(req.userId);
+    const user = db.prepare('SELECT password FROM users WHERE id = ?').get(req.userId);
 
     if (!user) {
       return res.status(404).json({ error: 'Kullanıcı bulunamadı' });
@@ -194,10 +198,8 @@ router.put('/change-password', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Mevcut şifre yanlış' });
     }
 
-    // Yeni şifreyi hashle ve güncelle
     const hashedPassword = await bcrypt.hash(newPassword, 10);
-    db.prepare('UPDATE users SET password = ? WHERE id = ?')
-      .run(hashedPassword, req.userId);
+    db.prepare('UPDATE users SET password = ? WHERE id = ?').run(hashedPassword, req.userId);
 
     res.json({ message: 'Şifre başarıyla güncellendi' });
   } catch (error) {

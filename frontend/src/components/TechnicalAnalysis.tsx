@@ -4,9 +4,8 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { TrendingUp, TrendingDown, Minus, Target, Shield, AlertTriangle, Info } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { toBars, pivotLevels, rollingLevels, ema, rsi, calculateBufferZone, calculateAllPivots } from "@/lib/ta";
-import { aiCommentaryModel } from "@/lib/aiCommentaryModel";
 
 interface TechnicalAnalysisProps {
   stock: { symbol: string; name: string; price: number; change: number; changePercent: number };

@@ -7,7 +7,7 @@ import { MessageSquare, TrendingUp, TrendingDown, Clock, User, Send, Trash2, Edi
 import { useAuth } from "@/contexts/AuthContext";
 import { getComments, addComment, deleteComment, updateComment } from "@/services/commentService";
 import { toast } from "sonner";
-import { getMLPrediction, getEnhancedPrediction, getSentimentSummary, type MLPrediction, type SentimentSummary } from "@/services/mlService";
+import { getMLPrediction, getEnhancedPrediction, getEnsemblePrediction, getSentimentSummary, type MLPrediction, type ModelResult, type SentimentSummary } from "@/services/mlService";
 
 interface Comment {
   id: string;
@@ -49,6 +49,7 @@ export const StockComments = ({ stock, levels }: StockCommentsProps) => {
   const [sentimentData, setSentimentData] = useState<SentimentSummary['result'] | null>(null);
   const [mlLoading, setMlLoading] = useState(true);
   const [mlError, setMlError] = useState<string | null>(null);
+  const [showAllModels, setShowAllModels] = useState(false);
 
   // Fiyat bilgisi: backend price_data varsa onu kullan, yoksa frontend'den gelen stock bilgisine düş
   const priceInfo = mlPrediction?.price_data ?? {
@@ -63,12 +64,18 @@ export const StockComments = ({ stock, levels }: StockCommentsProps) => {
       setMlError(null);
       
       try {
-        // Enhanced ML tahminini al
-        const predictionResponse = await getEnhancedPrediction(stock.symbol);
-        if (predictionResponse.success && predictionResponse.result) {
-          setMlPrediction(predictionResponse.result);
+        // Önce Ensemble tahminini dene (10 model, en güvenilir)
+        const ensembleResponse = await getEnsemblePrediction(stock.symbol);
+        if (ensembleResponse.success && ensembleResponse.result) {
+          setMlPrediction(ensembleResponse.result);
         } else {
-          setMlError(predictionResponse.error || 'Tahmin alınamadı');
+          // Ensemble yoksa Enhanced'a düş
+          const enhancedResponse = await getEnhancedPrediction(stock.symbol);
+          if (enhancedResponse.success && enhancedResponse.result) {
+            setMlPrediction(enhancedResponse.result);
+          } else {
+            setMlError(enhancedResponse.error || 'Tahmin alınamadı');
+          }
         }
         
         // Duygu analizi özetini al (hata olsa bile devam et)
@@ -79,7 +86,6 @@ export const StockComments = ({ stock, levels }: StockCommentsProps) => {
           }
         } catch (sentimentError) {
           console.warn('Sentiment özeti alınamadı (bu tahmin sonucunu etkilemez):', sentimentError);
-          // Sentiment hatası prediction'ı etkilemesin
         }
       } catch (error) {
         console.error('ML data loading error:', error);
@@ -185,11 +191,12 @@ export const StockComments = ({ stock, levels }: StockCommentsProps) => {
     }
   };
 
-  const getPredictionLabel = (prediction: string) => {
+  const getPredictionLabel = (prediction: string, predictionDisplay?: string) => {
+    if (predictionDisplay) return predictionDisplay;
     switch (prediction) {
-      case "UP": return "AL";
-      case "DOWN": return "SAT";
-      case "NEUTRAL": return "TUT";
+      case "UP": return "YÜKSELEBİLİR";
+      case "DOWN": return "DÜŞEBİLİR";
+      case "NEUTRAL": return "SABİT KALABİLİR";
       default: return prediction;
     }
   };
@@ -198,20 +205,28 @@ export const StockComments = ({ stock, levels }: StockCommentsProps) => {
     if (!mlPrediction) return "";
     
     const { prediction, confidence, probabilities } = mlPrediction;
-    const predictionLabel = getPredictionLabel(prediction);
+    const predictionLabel = getPredictionLabel(prediction, (mlPrediction as any).prediction_display);
     
     const confidencePercent = confidence != null && !isNaN(confidence) 
       ? (confidence * 100).toFixed(0) 
       : '100';
     
-    let trend = "nötr bir eğilim";
-    if (predictionLabel === "AL") {
-      trend = "yükseliş potansiyeli";
-    } else if (predictionLabel === "SAT") {
-      trend = "düşüş riski";
+    let trend = "sabit seyir olasılığı";
+    if (predictionLabel === "YÜKSELEBİLİR") {
+      trend = "yükseliş olasılığı";
+    } else if (predictionLabel === "DÜŞEBİLİR") {
+      trend = "düşüş olasılığı";
     }
+
+    const modelInfo = mlPrediction.method === 'ensemble' && mlPrediction.best_model
+      ? ` En güvenilir model: ${mlPrediction.best_model} (${mlPrediction.total_models || '-'} model arasından seçildi).`
+      : '';
+
+    const sentimentNote = mlPrediction.sentiment_impact
+      ? ` Haber duygu analizi toplam tahmine ${mlPrediction.sentiment_impact} oranında etki etmektedir.`
+      : '';
     
-    const text = `${stock.symbol} hissesi için makine öğrenmesi modelimiz %${confidencePercent} güven seviyesiyle ${trend} göstermektedir. Bu tahmin, teknik göstergeler ve geçmiş fiyat hareketleri analiz edilerek oluşturulmuştur. Tüm detaylar aşağıda sunulmuştur.`;
+    const text = `${stock.symbol} hissesi için makine öğrenmesi modelimiz %${confidencePercent} güven seviyesiyle ${trend} göstermektedir. Bu tahmin, teknik göstergeler ve geçmiş fiyat hareketleri analiz edilerek oluşturulmuştur.${modelInfo}${sentimentNote} Tüm detaylar aşağıda sunulmuştur.`;
     
     return text;
   };
@@ -269,11 +284,11 @@ export const StockComments = ({ stock, levels }: StockCommentsProps) => {
                 </div>
               </div>
               <div className={`text-lg px-4 py-2 rounded-md font-semibold ${
-                ['AL', 'UP'].includes(mlPrediction.prediction) ? 'bg-green-500 text-white' :
-                ['SAT', 'DOWN'].includes(mlPrediction.prediction) ? 'bg-red-500 text-white' :
+                mlPrediction.prediction === 'UP' ? 'bg-green-500 text-white' :
+                mlPrediction.prediction === 'DOWN' ? 'bg-red-500 text-white' :
                 'bg-yellow-500 text-white'
               }`}>
-                {getPredictionLabel(mlPrediction.prediction)}
+                {getPredictionLabel(mlPrediction.prediction, (mlPrediction as any).prediction_display)}
               </div>
             </div>
             
@@ -371,10 +386,81 @@ export const StockComments = ({ stock, levels }: StockCommentsProps) => {
               <div className="p-3 bg-background/50 rounded-lg">
                 <p className="text-xs text-muted-foreground mb-1">Analiz Yöntemi</p>
                 <p className="text-lg font-bold text-foreground">
-                  Ensemble ML
+                  {mlPrediction.method === 'ensemble' ? 'Ensemble ML' : 'Enhanced ML'}
                 </p>
               </div>
             </div>
+
+            {/* Ensemble Detayları */}
+            {mlPrediction.best_model && (
+              <div className="mb-4 p-3 bg-background/50 rounded-lg space-y-2">
+                <p className="text-xs font-semibold text-muted-foreground">Ensemble Model Detayları</p>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">En İyi Model:</span>
+                    <span className="font-semibold text-primary">{mlPrediction.best_model}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Toplam Model:</span>
+                    <span className="font-semibold">{mlPrediction.total_models || '-'}</span>
+                  </div>
+                  {mlPrediction.best_model_backtest_f1 != null && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Backtest F1:</span>
+                      <span className="font-semibold">{(mlPrediction.best_model_backtest_f1 * 100).toFixed(1)}%</span>
+                    </div>
+                  )}
+                  {mlPrediction.sentiment_impact && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Haber Etkisi:</span>
+                      <span className="font-semibold">{mlPrediction.sentiment_impact}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Diğer Modeller Sekmesi */}
+            {mlPrediction.all_models && Object.keys(mlPrediction.all_models).length > 1 && (
+              <div className="mb-4">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full text-xs text-muted-foreground hover:text-foreground"
+                  onClick={() => setShowAllModels(!showAllModels)}
+                >
+                  {showAllModels ? '▲ Diğer Modelleri Gizle' : `▼ Diğer Modelleri Göster (${Object.keys(mlPrediction.all_models).length} model)`}
+                </Button>
+                {showAllModels && (
+                  <div className="mt-2 p-3 bg-background/50 rounded-lg border border-border/50 space-y-1.5">
+                    {Object.entries(mlPrediction.all_models).map(([name, info]) => (
+                      <div key={name} className={`flex items-center justify-between text-xs p-1.5 rounded ${
+                        name === mlPrediction.best_model ? 'bg-primary/10 border border-primary/20' : ''
+                      }`}>
+                        <div className="flex items-center gap-2">
+                          {name === mlPrediction.best_model && <span className="text-primary">★</span>}
+                          <span className={name === mlPrediction.best_model ? 'font-semibold text-foreground' : 'text-muted-foreground'}>
+                            {name}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <Badge variant="outline" className={`text-xs ${
+                            info.prediction === 'UP' ? 'border-green-500 text-green-600' :
+                            info.prediction === 'DOWN' ? 'border-red-500 text-red-600' :
+                            'border-yellow-500 text-yellow-600'
+                          }`}>
+                            {(info as any).prediction_display || (info.prediction === 'UP' ? 'YÜKSELEBİLİR' : info.prediction === 'DOWN' ? 'DÜŞEBİLİR' : 'SABİT KALABİLİR')}
+                          </Badge>
+                          <span className="font-medium w-14 text-right">
+                            %{(info.confidence * 100).toFixed(1)}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
             
             {/* Teknik Göstergeler */}
             {mlPrediction.technical_indicators && (

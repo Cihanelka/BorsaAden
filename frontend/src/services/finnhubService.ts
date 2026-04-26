@@ -1,3 +1,9 @@
+/**
+ * Created by: Aden Borsa Team
+ * Created At: 2025
+ * Subject: Finnhub API entegrasyonu - şirket profili, finansal raporlar ve haberler
+ */
+
 const FINNHUB_API_KEY = import.meta.env.VITE_FINNHUB_KEY || 'demo';
 const BASE_URL = 'https://finnhub.io/api/v1';
 
@@ -52,6 +58,7 @@ export interface FinancialsResponse {
   data: FinancialReport[];
 }
 
+/** Belirtilen hisse sembolü için Finnhub'dan şirket profil bilgilerini çeker */
 export const getCompanyProfile = async (symbol: string): Promise<CompanyProfile> => {
   try {
     if (FINNHUB_API_KEY === 'demo' || !FINNHUB_API_KEY) {
@@ -74,6 +81,7 @@ export const getCompanyProfile = async (symbol: string): Promise<CompanyProfile>
   }
 };
 
+/** Belirtilen hisse sembolü için IFRS/GAAP finansal raporlarını çeker */
 export const getFinancialReports = async (symbol: string): Promise<FinancialsResponse> => {
   try {
     if (FINNHUB_API_KEY === 'demo' || !FINNHUB_API_KEY) {
@@ -96,6 +104,7 @@ export const getFinancialReports = async (symbol: string): Promise<FinancialsRes
   }
 };
 
+/** Belirtilen hisse sembolü ve tarih aralığı için şirket haberlerini çeker */
 export const getCompanyNews = async (symbol: string, from: string, to: string) => {
   try {
     if (FINNHUB_API_KEY === 'demo' || !FINNHUB_API_KEY) {

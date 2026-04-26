@@ -4,6 +4,7 @@ API'den veri çekme ve CSV'ye kaydetme modülü
 import requests
 import pandas as pd
 from datetime import datetime, timedelta
+from datetime import timezone
 import time
 import os
 import xml.etree.ElementTree as ET
@@ -209,7 +210,7 @@ class DataCollector:
             root = ET.fromstring(response.content)
             
             news_list = []
-            cutoff_date = datetime.now() - timedelta(days=days)
+            cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
             
             # RSS item'ları işle
             for item in root.findall('.//item'):
@@ -227,15 +228,19 @@ class DataCollector:
                             # RFC 822: "Wed, 02 Oct 2002 13:00:00 GMT"
                             from email.utils import parsedate_to_datetime
                             pub_datetime = parsedate_to_datetime(pub_date.text)
+                            if pub_datetime.tzinfo is None:
+                                pub_datetime = pub_datetime.replace(tzinfo=timezone.utc)
+                            else:
+                                pub_datetime = pub_datetime.astimezone(timezone.utc)
                             
                             # Tarih kontrolü
                             if pub_datetime < cutoff_date:
                                 continue
                         except Exception as e:
                             print(f"⚠️ Tarih parse hatası: {e}")
-                            pub_datetime = datetime.now()
+                            pub_datetime = datetime.now(timezone.utc)
                     else:
-                        pub_datetime = datetime.now()
+                        pub_datetime = datetime.now(timezone.utc)
                     
                     news_list.append({
                         'datetime': int(pub_datetime.timestamp()),
@@ -244,7 +249,7 @@ class DataCollector:
                         'source': source.text if source is not None else 'Google News',
                         'url': link.text if link is not None else '',
                         'symbol': symbol,
-                        'collected_at': datetime.now()
+                        'collected_at': datetime.now(timezone.utc)
                     })
                     
                 except Exception as e:

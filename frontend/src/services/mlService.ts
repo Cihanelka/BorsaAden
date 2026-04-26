@@ -1,10 +1,17 @@
 /**
- * ML (Machine Learning) servis entegrasyonu
- * Python ML servisinden hisse tahminleri alır
+ * Created by: Aden Borsa Team
+ * Created At: 2025
+ * Subject: ML servis entegrasyonu - Python backend üzerinden tahmin, teknik analiz ve sentiment
  */
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 const API_URL = `${API_BASE_URL}/ml`;
+
+export interface ModelResult {
+  prediction: string;
+  confidence: number;
+  backtest_f1: number;
+}
 
 export interface MLPrediction {
   symbol: string;
@@ -42,7 +49,7 @@ export interface MLPrediction {
   technical_score?: number;
   sentiment_score?: number;
   news_count?: number;
-  method?: 'ml_model' | 'enhanced';
+  method?: 'ml_model' | 'enhanced' | 'ensemble';
   timestamp?: string;
   price_data?: {
     current: number;
@@ -52,6 +59,12 @@ export interface MLPrediction {
   signals?: string[];
   volatility?: number;
   volume_trend?: number;
+  // Ensemble alanları
+  best_model?: string;
+  best_model_backtest_f1?: number;
+  all_models?: Record<string, ModelResult>;
+  total_models?: number;
+  sentiment_impact?: string;
 }
 
 export interface MLResponse {
@@ -123,11 +136,11 @@ export async function getMLPrediction(symbol: string, useCachedData: boolean = t
       body: JSON.stringify({ symbol, use_cached_data: useCachedData }),
     });
 
+    const data = await response.json();
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      return { success: false, error: data.error || `HTTP error! status: ${response.status}` };
     }
 
-    const data = await response.json();
     return data;
   } catch (error) {
     console.error('ML prediction error:', error);
@@ -210,11 +223,10 @@ export async function getEnhancedPrediction(symbol: string): Promise<MLResponse>
       body: JSON.stringify({ symbol }),
     });
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
     const data = await response.json();
+    if (!response.ok) {
+      return { success: false, error: data.error || `HTTP error! status: ${response.status}` };
+    }
     
     // Convert enhanced format to MLPrediction format
     if (data.success) {
@@ -272,6 +284,55 @@ export async function getBatchPredictions(symbols: string[]): Promise<{
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Toplu tahmin alınamadı',
+    };
+  }
+}
+
+/**
+ * Ensemble ML tahmin al (10 model, en yüksek confidence)
+ */
+export async function getEnsemblePrediction(symbol: string): Promise<MLResponse> {
+  try {
+    const response = await fetch(`${API_URL}/predict-ensemble`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ symbol }),
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      return { success: false, error: data.error || `HTTP error! status: ${response.status}` };
+    }
+
+    if (data.success) {
+      return {
+        success: true,
+        result: {
+          symbol,
+          prediction: data.prediction as 'UP' | 'DOWN' | 'NEUTRAL',
+          confidence: data.confidence || 0,
+          probabilities: data.probabilities,
+          prediction_numeric: data.prediction_numeric,
+          disclaimer: data.disclaimer,
+          method: 'ensemble',
+          timestamp: data.timestamp || new Date().toISOString(),
+          best_model: data.best_model,
+          best_model_backtest_f1: data.best_model_backtest_f1,
+          all_models: data.all_models,
+          total_models: data.total_models,
+          sentiment_impact: data.sentiment_impact,
+        },
+      };
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Ensemble prediction error:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Ensemble tahmin alınamadı',
     };
   }
 }

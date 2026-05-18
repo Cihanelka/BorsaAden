@@ -295,7 +295,7 @@ router.post('/predict-enhanced', async (req, res) => {
  */
 router.post('/predict-ensemble', async (req, res) => {
   try {
-    const { symbol } = req.body;
+    const { symbol, horizon = 5 } = req.body;
 
     if (!symbol) {
       return res.status(400).json({
@@ -307,7 +307,7 @@ router.post('/predict-ensemble', async (req, res) => {
     const response = await fetch(`${ML_SERVICE_URL}/api/predict-ensemble`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ symbol })
+      body: JSON.stringify({ symbol, horizon })
     });
 
     const data = await response.json();

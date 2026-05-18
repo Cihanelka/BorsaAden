@@ -148,10 +148,10 @@ export default function MLPrediction({ symbol, onPredictionReceived }: MLPredict
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Brain className="w-5 h-5" />
-          Ensemble ML Tahmini
+          Teknik Analiz Tahmini
         </CardTitle>
         <CardDescription>
-          15+ model ile ensemble tahmin (Teknik göstergeler öncelikli, %2 haber etkisi)
+          Çoklu teknik gösterge analizi ile tahmin (RSI, MACD, Bollinger, Destek/Direnç)
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -332,24 +332,18 @@ export default function MLPrediction({ symbol, onPredictionReceived }: MLPredict
               </div>
             )}
 
-            {/* Tavsiye ve Model Bilgisi */}
+            {/* Tavsiye */}
             {prediction.recommendation && (
               <div className="p-3 rounded-lg bg-blue-50 border border-blue-200">
-                <p className="text-sm font-medium text-blue-900">
-                  💡 {prediction.recommendation}
-                </p>
+                <div 
+                  className="text-sm font-medium text-blue-900 leading-relaxed"
+                  dangerouslySetInnerHTML={{ __html: `💡 ${prediction.recommendation}` }}
+                />
               </div>
             )}
 
-            {/* Metod Bilgisi */}
             <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <span>
-                {prediction.method === 'ensemble'
-                  ? `Ensemble (${prediction.best_model || 'best model'})`
-                  : prediction.model_type 
-                  ? `Model: ${prediction.model_type}${prediction.features_used ? ` (${prediction.features_used} özellik)` : ''}`
-                  : 'ML Model'}
-              </span>
+              <span>Çoklu Teknik Analiz</span>
               <span>
                 {prediction.timestamp && new Date(prediction.timestamp).toLocaleTimeString('tr-TR')}
               </span>

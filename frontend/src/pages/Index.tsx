@@ -40,7 +40,7 @@ const Index = () => {
     try {
       const daysMap = { '1day': 1, '1week': 7, '1month': 30 };
       const days = daysMap[selectedTimeframe];
-      
+
       // ML servisinden yfinance ile veri çek
       const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
       const response = await fetch(`${API_BASE_URL}/ml/stock-data`, {
@@ -48,25 +48,25 @@ const Index = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ symbol: selectedStock.symbol, days: days })
       });
-      
+
       const result = await response.json();
-      
+
       if (result.success && result.data && result.data.length > 0) {
         // yfinance formatını TimeSeriesData formatına çevir
         const formattedData = result.data.map((item: any) => ({
-          datetime: item.Date,
+          datetime: item.date || item.Date || '',
           open: item.open?.toString() || '0',
           high: item.high?.toString() || '0',
           low: item.low?.toString() || '0',
           close: item.close?.toString() || '0',
           volume: item.volume?.toString() || '0'
         }));
-        
+
         // Tarihe göre sırala (eskiden yeniye)
         formattedData.sort((a: TimeSeriesData, b: TimeSeriesData) => {
           return new Date(a.datetime).getTime() - new Date(b.datetime).getTime();
         });
-        
+
         setTimeSeries(formattedData);
       } else {
         setTsError("Veri bulunamadı");
@@ -97,7 +97,7 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
       <BackgroundChart />
-      
+
       <AppHeader />
 
       {/* Main Content */}
@@ -109,13 +109,13 @@ const Index = () => {
               Hisse Senedi Analizi
             </h2>
             <p className="text-muted-foreground font-semibold">
-               Aradığınız Hisse Senedini Seçin Ve Detaylı Teknik Analiz, Grafik Ve AI Yorumuna Ulaşın.
+              Aradığınız Hisse Senedini Seçin Ve Detaylı Teknik Analiz, Grafik Ve AI Yorumuna Ulaşın.
             </p>
           </div>
 
           <div className="flex justify-center">
-            <StockSearch 
-              onStockSelect={setSelectedStock} 
+            <StockSearch
+              onStockSelect={setSelectedStock}
               selectedStock={selectedStock}
               initialSymbol={(location.state as any)?.selectedSymbol}
             />
@@ -129,7 +129,7 @@ const Index = () => {
             <div className="grid grid-cols-1 gap-8">
               <div>
                 <StockChart stock={selectedStock} />
-                
+
                 {/* Action Buttons */}
                 <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3">
                   <Button
@@ -146,7 +146,7 @@ const Index = () => {
                     <History className="h-5 w-5" />
                     <span className="text-sm font-medium">Tarihsel Veriler</span>
                   </Button>
-                  
+
                   <Button
                     variant={openSection === "tech" ? "default" : "outline"}
                     className="h-auto py-4 flex flex-col items-center gap-2 transition-all"
@@ -155,7 +155,7 @@ const Index = () => {
                     <LineChart className="h-5 w-5" />
                     <span className="text-sm font-medium">Teknik Analiz</span>
                   </Button>
-                  
+
                   <Button
                     variant={openSection === "company" ? "default" : "outline"}
                     className="h-auto py-4 flex flex-col items-center gap-2 transition-all"
@@ -164,14 +164,14 @@ const Index = () => {
                     <Building2 className="h-5 w-5" />
                     <span className="text-sm font-medium">Şirket Bilgileri</span>
                   </Button>
-                  
+
                   <Button
                     variant={openSection === "comments" ? "default" : "outline"}
                     className="h-auto py-4 flex flex-col items-center gap-2 transition-all"
                     onClick={() => setOpenSection(openSection === "comments" ? null : "comments")}
                   >
                     <Sparkles className="h-5 w-5" />
-                    <span className="text-sm font-medium">AI Yorumlar</span>
+                    <span className="text-sm font-medium">AI Analizi</span>
                   </Button>
                 </div>
 
@@ -187,9 +187,9 @@ const Index = () => {
                       </CardHeader>
                       <CardContent>
                         <div className="flex gap-2 mb-4">
-                           <button className={`${selectedTimeframe === '1day' ? 'bg-blue-500 text-white' : 'bg-black-200'} px-4 py-2 rounded`} onClick={() => setSelectedTimeframe('1day')}>1 Gün</button>
-                           <button className={`${selectedTimeframe === '1week' ? 'bg-blue-500 text-white' : 'bg-black-200'} px-4 py-2 rounded`} onClick={() => setSelectedTimeframe('1week')}>1 Hafta</button>
-                           <button className={`${selectedTimeframe === '1month' ? 'bg-blue-500 text-white' : 'bg-black-200'} px-4 py-2 rounded`} onClick={() => setSelectedTimeframe('1month')}>1 Ay</button>
+                          <button className={`${selectedTimeframe === '1day' ? 'bg-blue-500 text-white' : 'bg-black-200'} px-4 py-2 rounded`} onClick={() => setSelectedTimeframe('1day')}>1 Gün</button>
+                          <button className={`${selectedTimeframe === '1week' ? 'bg-blue-500 text-white' : 'bg-black-200'} px-4 py-2 rounded`} onClick={() => setSelectedTimeframe('1week')}>1 Hafta</button>
+                          <button className={`${selectedTimeframe === '1month' ? 'bg-blue-500 text-white' : 'bg-black-200'} px-4 py-2 rounded`} onClick={() => setSelectedTimeframe('1month')}>1 Ay</button>
                         </div>
 
                         {tsLoading && (
@@ -263,7 +263,7 @@ const Index = () => {
                               <Lock className="h-8 w-8 text-primary" />
                             </div>
                             <h3 className="text-xl font-semibold text-foreground">
-                              AI Yorumları Görüntülemek İçin Giriş Yapın
+                              AI Analizi Görüntülemek İçin Giriş Yapın
                             </h3>
                             <p className="text-muted-foreground max-w-md mx-auto">
                               Yapay zeka destekli analiz ve yorumları görüntülemek için lütfen hesabınıza giriş yapın.
@@ -303,39 +303,39 @@ const Index = () => {
                       loading="lazy"
                     />
                   </div>
-                  
+
                   <h3 className="text-2xl font-semibold text-foreground mb-4">
                     Hisse Analizi Yapmaya Başlayın
                   </h3>
                   <p className="text-muted-foreground max-w-md mx-auto mb-8">
                     Yukarıdaki arama çubuğundan bir hisse senedi seçerek detaylı analiz ve grafiklere ulaşabilirsiniz.
                   </p>
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
-                <div className="p-6 bg-card/50 rounded-lg border border-border/50 backdrop-blur-sm">
-                  <BarChart3 className="h-8 w-8 text-primary mb-3 mx-auto" />
-                  <h4 className="font-semibold text-foreground mb-2">Canlı Grafikler</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Gerçek zamanlı fiyat hareketleri ve teknik göstergeler
-                  </p>
-                </div>
-                
-                <div className="p-6 bg-card/50 rounded-lg border border-border/50 backdrop-blur-sm">
-                  <TrendingUp className="h-8 w-8 text-success mb-3 mx-auto" />
-                  <h4 className="font-semibold text-foreground mb-2">Teknik Analiz</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Destek, direnç seviyeleri ve teknik indikatörler
-                  </p>
-                </div>
-                
-                <div className="p-6 bg-card/50 rounded-lg border border-border/50 backdrop-blur-sm">
-                  <MessageCircle className="h-8 w-8 text-warning mb-3 mx-auto" />
-                  <h4 className="font-semibold text-foreground mb-2">AI Yorumlar</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Yapay zeka destekli analiz ve uzman yorumları
-                  </p>
-                </div>
-              </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+                    <div className="p-6 bg-card/50 rounded-lg border border-border/50 backdrop-blur-sm">
+                      <BarChart3 className="h-8 w-8 text-primary mb-3 mx-auto" />
+                      <h4 className="font-semibold text-foreground mb-2">Canlı Grafikler</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Gerçek zamanlı fiyat hareketleri ve teknik göstergeler
+                      </p>
+                    </div>
+
+                    <div className="p-6 bg-card/50 rounded-lg border border-border/50 backdrop-blur-sm">
+                      <TrendingUp className="h-8 w-8 text-success mb-3 mx-auto" />
+                      <h4 className="font-semibold text-foreground mb-2">Teknik Analiz</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Destek, direnç seviyeleri ve teknik indikatörler
+                      </p>
+                    </div>
+
+                    <div className="p-6 bg-card/50 rounded-lg border border-border/50 backdrop-blur-sm">
+                      <MessageCircle className="h-8 w-8 text-warning mb-3 mx-auto" />
+                      <h4 className="font-semibold text-foreground mb-2">AI Analizi</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Yapay zeka destekli analiz ve uzman yorumları
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
             </CardContent>

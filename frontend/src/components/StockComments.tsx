@@ -50,6 +50,7 @@ export const StockComments = ({ stock, levels }: StockCommentsProps) => {
   const [mlLoading, setMlLoading] = useState(true);
   const [mlError, setMlError] = useState<string | null>(null);
   const [showAllModels, setShowAllModels] = useState(false);
+  const [horizon, setHorizon] = useState<number>(5); // Default 5 gün (1 hafta)
 
   // Fiyat bilgisi: backend price_data varsa onu kullan, yoksa frontend'den gelen stock bilgisine düş
   const priceInfo = mlPrediction?.price_data ?? {
@@ -57,35 +58,29 @@ export const StockComments = ({ stock, levels }: StockCommentsProps) => {
     change: stock?.change,
     change_percent: stock?.changePercent
   };
-  
+
   useEffect(() => {
     const loadMLData = async () => {
       setMlLoading(true);
       setMlError(null);
-      
+
       try {
-        // Önce Ensemble tahminini dene (10 model, en güvenilir)
-        const ensembleResponse = await getEnsemblePrediction(stock.symbol);
+        // Seçili vade (horizon) ile tahmin al
+        const ensembleResponse = await getEnsemblePrediction(stock.symbol, horizon);
         if (ensembleResponse.success && ensembleResponse.result) {
           setMlPrediction(ensembleResponse.result);
         } else {
-          // Ensemble yoksa Enhanced'a düş
-          const enhancedResponse = await getEnhancedPrediction(stock.symbol);
-          if (enhancedResponse.success && enhancedResponse.result) {
-            setMlPrediction(enhancedResponse.result);
-          } else {
-            setMlError(enhancedResponse.error || 'Tahmin alınamadı');
-          }
+          setMlError(ensembleResponse.error || 'Tahmin alınamadı');
         }
-        
-        // Duygu analizi özetini al (hata olsa bile devam et)
+
+        // Duygu analizi (vadeden bağımsız, son 7-30 gün)
         try {
           const sentimentResponse = await getSentimentSummary(stock.symbol, 7);
           if (sentimentResponse.success && sentimentResponse.result) {
             setSentimentData(sentimentResponse.result);
           }
         } catch (sentimentError) {
-          console.warn('Sentiment özeti alınamadı (bu tahmin sonucunu etkilemez):', sentimentError);
+          console.warn('Sentiment özeti alınamadı:', sentimentError);
         }
       } catch (error) {
         console.error('ML data loading error:', error);
@@ -94,10 +89,10 @@ export const StockComments = ({ stock, levels }: StockCommentsProps) => {
         setMlLoading(false);
       }
     };
-    
+
     loadMLData();
-  }, [stock.symbol]);
-  
+  }, [stock.symbol, horizon]);
+
   const [userComments, setUserComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState("");
   const [loading, setLoading] = useState(false);
@@ -111,7 +106,7 @@ export const StockComments = ({ stock, levels }: StockCommentsProps) => {
 
   const handleAddComment = async () => {
     if (!newComment.trim() || !user) return;
-    
+
     setLoading(true);
     try {
       const comment = await addComment(user.id.toString(), stock.symbol.toString(), newComment);
@@ -139,7 +134,7 @@ export const StockComments = ({ stock, levels }: StockCommentsProps) => {
 
   const handleUpdateComment = async (commentId: string) => {
     if (!editContent.trim()) return;
-    
+
     try {
       const updated = await updateComment(commentId, editContent);
       setUserComments(userComments.map(c => c.id === commentId ? updated : c));
@@ -201,45 +196,41 @@ export const StockComments = ({ stock, levels }: StockCommentsProps) => {
     }
   };
 
-  const generateAnalysisText = () => {
-    if (!mlPrediction) return "";
-    
-    const { prediction, confidence, probabilities } = mlPrediction;
-    const predictionLabel = getPredictionLabel(prediction, (mlPrediction as any).prediction_display);
-    
-    const confidencePercent = confidence != null && !isNaN(confidence) 
-      ? (confidence * 100).toFixed(0) 
-      : '100';
-    
-    let trend = "sabit seyir olasılığı";
-    if (predictionLabel === "YÜKSELEBİLİR") {
-      trend = "yükseliş olasılığı";
-    } else if (predictionLabel === "DÜŞEBİLİR") {
-      trend = "düşüş olasılığı";
-    }
 
-    const modelInfo = mlPrediction.method === 'ensemble' && mlPrediction.best_model
-      ? ` En güvenilir model: ${mlPrediction.best_model} (${mlPrediction.total_models || '-'} model arasından seçildi).`
-      : '';
 
-    const sentimentNote = mlPrediction.sentiment_impact
-      ? ` Haber duygu analizi toplam tahmine ${mlPrediction.sentiment_impact} oranında etki etmektedir.`
-      : '';
-    
-    const text = `${stock.symbol} hissesi için makine öğrenmesi modelimiz %${confidencePercent} güven seviyesiyle ${trend} göstermektedir. Bu tahmin, teknik göstergeler ve geçmiş fiyat hareketleri analiz edilerek oluşturulmuştur.${modelInfo}${sentimentNote} Tüm detaylar aşağıda sunulmuştur.`;
-    
-    return text;
-  };
 
   return (
     <Card className="bg-card border-border shadow-card">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Sparkles className="h-5 w-5 text-primary" />
-          ML Tahmin & AI Analiz - {stock.symbol}
+          AI Analiz - {stock.symbol}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
+        {/* Vade Seçimi */}
+        <div className="flex flex-col gap-3">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Tahmin Vadesi</p>
+          <div className="flex bg-muted/50 p-1 rounded-lg w-fit">
+            {[
+              { id: 5, label: "1 Hafta" },
+              { id: 21, label: "1 Ay" },
+              { id: 63, label: "3 Ay" }
+            ].map((v) => (
+              <Button
+                key={v.id}
+                variant={horizon === v.id ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setHorizon(v.id)}
+                className={`text-xs px-4 h-8 rounded-md transition-all ${horizon === v.id ? "shadow-sm" : "text-muted-foreground"
+                  }`}
+              >
+                {v.label}
+              </Button>
+            ))}
+          </div>
+        </div>
+
         {/* ML Prediction Section */}
         {mlLoading ? (
           <div className="p-6 bg-gradient-to-r from-primary/10 to-primary/5 rounded-lg border border-primary/20">
@@ -262,94 +253,95 @@ export const StockComments = ({ stock, levels }: StockCommentsProps) => {
             </div>
           </div>
         ) : mlPrediction ? (
-          <div className={`p-4 rounded-lg border-2 ${
-            ['AL', 'UP'].includes(mlPrediction.prediction) ? 'bg-success/10 border-success/30' :
+          <div className={`p-4 rounded-lg border-2 ${['AL', 'UP'].includes(mlPrediction.prediction) ? 'bg-success/10 border-success/30' :
             ['SAT', 'DOWN'].includes(mlPrediction.prediction) ? 'bg-destructive/10 border-destructive/30' :
-            'bg-warning/10 border-warning/30'
-          }`}>
+              'bg-warning/10 border-warning/30'
+            }`}>
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
-                <div className={`h-10 w-10 rounded-full flex items-center justify-center ${
-                  ['AL', 'UP'].includes(mlPrediction.prediction) ? 'bg-success' :
+                <div className={`h-10 w-10 rounded-full flex items-center justify-center ${['AL', 'UP'].includes(mlPrediction.prediction) ? 'bg-success' :
                   ['SAT', 'DOWN'].includes(mlPrediction.prediction) ? 'bg-destructive' :
-                  'bg-warning'
-                }`}>
+                    'bg-warning'
+                  }`}>
                   {getPredictionIcon(mlPrediction.prediction)}
                 </div>
                 <div>
-                  <p className="font-bold text-lg text-foreground">ADEN ML ANALİZİ</p>
+                  <p className="font-bold text-lg text-foreground">ADEN'İN ANALİZİ</p>
                   <p className="text-xs text-muted-foreground">
-                    🤖 Makine Öğrenmesi • {new Date().toLocaleString('tr-TR')}
+                    {new Date().toLocaleString('tr-TR')}
                   </p>
                 </div>
               </div>
-              <div className={`text-lg px-4 py-2 rounded-md font-semibold ${
-                mlPrediction.prediction === 'UP' ? 'bg-green-500 text-white' :
+              <div className={`text-lg px-4 py-2 rounded-md font-semibold ${mlPrediction.prediction === 'UP' ? 'bg-green-500 text-white' :
                 mlPrediction.prediction === 'DOWN' ? 'bg-red-500 text-white' :
-                'bg-yellow-500 text-white'
-              }`}>
+                  'bg-yellow-500 text-white'
+                }`}>
                 {getPredictionLabel(mlPrediction.prediction, (mlPrediction as any).prediction_display)}
               </div>
             </div>
-            
-            <p className="text-sm text-foreground leading-relaxed mb-4">
-              {generateAnalysisText()}
-            </p>
-            
+
+            {/* Teknik Analiz Yorumu - Doğrudan başta */}
+            {mlPrediction.recommendation && (
+              <div
+                className="text-sm text-foreground leading-relaxed mb-4"
+                dangerouslySetInnerHTML={{ __html: mlPrediction.recommendation }}
+              />
+            )}
+
             {/* Olasılık Dağılımı */}
             {mlPrediction.probabilities && (
               <div className="mb-4 p-4 bg-background/50 rounded-lg space-y-3">
                 <p className="text-xs font-semibold text-muted-foreground mb-2">Tahmin Olasılık Dağılımı</p>
-                
+
                 <div className="space-y-2">
                   <div>
                     <div className="flex justify-between items-center mb-1">
                       <span className="text-xs font-medium text-foreground flex items-center gap-1">
                         <TrendingUp className="h-3 w-3 text-green-500" />
-                        AL (Yükseliş)
+                        Yükselebilir
                       </span>
                       <span className="text-xs font-bold text-green-500">
                         %{((mlPrediction.probabilities.UP || mlPrediction.probabilities.AL || 0) * 100).toFixed(1)}
                       </span>
                     </div>
                     <div className="h-2 bg-muted rounded-full overflow-hidden">
-                      <div 
+                      <div
                         className="h-full bg-green-500 transition-all duration-500"
                         style={{ width: `${(mlPrediction.probabilities.UP || mlPrediction.probabilities.AL || 0) * 100}%` }}
                       />
                     </div>
                   </div>
-                  
+
                   <div>
                     <div className="flex justify-between items-center mb-1">
                       <span className="text-xs font-medium text-foreground flex items-center gap-1">
                         <Sparkles className="h-3 w-3 text-yellow-500" />
-                        TUT (Nötr)
+                        Sabit Kalabilir
                       </span>
                       <span className="text-xs font-bold text-yellow-500">
                         %{((mlPrediction.probabilities.NEUTRAL || mlPrediction.probabilities.TUT || 0) * 100).toFixed(1)}
                       </span>
                     </div>
                     <div className="h-2 bg-muted rounded-full overflow-hidden">
-                      <div 
+                      <div
                         className="h-full bg-yellow-500 transition-all duration-500"
                         style={{ width: `${(mlPrediction.probabilities.NEUTRAL || mlPrediction.probabilities.TUT || 0) * 100}%` }}
                       />
                     </div>
                   </div>
-                  
+
                   <div>
                     <div className="flex justify-between items-center mb-1">
                       <span className="text-xs font-medium text-foreground flex items-center gap-1">
                         <TrendingDown className="h-3 w-3 text-red-500" />
-                        SAT (Düşüş)
+                        Düşebilir
                       </span>
                       <span className="text-xs font-bold text-red-500">
                         %{((mlPrediction.probabilities.DOWN || mlPrediction.probabilities.SAT || 0) * 100).toFixed(1)}
                       </span>
                     </div>
                     <div className="h-2 bg-muted rounded-full overflow-hidden">
-                      <div 
+                      <div
                         className="h-full bg-red-500 transition-all duration-500"
                         style={{ width: `${(mlPrediction.probabilities.DOWN || mlPrediction.probabilities.SAT || 0) * 100}%` }}
                       />
@@ -358,191 +350,10 @@ export const StockComments = ({ stock, levels }: StockCommentsProps) => {
                 </div>
               </div>
             )}
-            
-            {/* Fiyat Bilgileri */}
-            {priceInfo && priceInfo.current != null && !isNaN(priceInfo.current) && (
-              <div className="mb-4 p-3 bg-background/50 rounded-lg">
-                <p className="text-xs text-muted-foreground mb-2">Güncel Fiyat Bilgileri</p>
-                <div className="flex items-center gap-4">
-                  <div>
-                    <p className="text-2xl font-bold text-foreground">
-                      ${priceInfo.current.toFixed(2)}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-            
-            {/* Model Güven Seviyesi ve İstatistikler */}
-            <div className="grid grid-cols-2 gap-3 mb-4">
-              <div className="p-3 bg-background/50 rounded-lg">
-                <p className="text-xs text-muted-foreground mb-1">Model Güven Seviyesi</p>
-                <p className="text-lg font-bold text-foreground">
-                  %{mlPrediction.confidence != null && !isNaN(mlPrediction.confidence)
-                    ? (mlPrediction.confidence * 100).toFixed(1)
-                    : '100.0'}
-                </p>
-              </div>
-              <div className="p-3 bg-background/50 rounded-lg">
-                <p className="text-xs text-muted-foreground mb-1">Analiz Yöntemi</p>
-                <p className="text-lg font-bold text-foreground">
-                  {mlPrediction.method === 'ensemble' ? 'Ensemble ML' : 'Enhanced ML'}
-                </p>
-              </div>
-            </div>
 
-            {/* Ensemble Detayları */}
-            {mlPrediction.best_model && (
-              <div className="mb-4 p-3 bg-background/50 rounded-lg space-y-2">
-                <p className="text-xs font-semibold text-muted-foreground">Ensemble Model Detayları</p>
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">En İyi Model:</span>
-                    <span className="font-semibold text-primary">{mlPrediction.best_model}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Toplam Model:</span>
-                    <span className="font-semibold">{mlPrediction.total_models || '-'}</span>
-                  </div>
-                  {mlPrediction.best_model_backtest_f1 != null && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Backtest F1:</span>
-                      <span className="font-semibold">{(mlPrediction.best_model_backtest_f1 * 100).toFixed(1)}%</span>
-                    </div>
-                  )}
-                  {mlPrediction.sentiment_impact && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Haber Etkisi:</span>
-                      <span className="font-semibold">{mlPrediction.sentiment_impact}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
 
-            {/* Diğer Modeller Sekmesi */}
-            {mlPrediction.all_models && Object.keys(mlPrediction.all_models).length > 1 && (
-              <div className="mb-4">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="w-full text-xs text-muted-foreground hover:text-foreground"
-                  onClick={() => setShowAllModels(!showAllModels)}
-                >
-                  {showAllModels ? '▲ Diğer Modelleri Gizle' : `▼ Diğer Modelleri Göster (${Object.keys(mlPrediction.all_models).length} model)`}
-                </Button>
-                {showAllModels && (
-                  <div className="mt-2 p-3 bg-background/50 rounded-lg border border-border/50 space-y-1.5">
-                    {Object.entries(mlPrediction.all_models).map(([name, info]) => (
-                      <div key={name} className={`flex items-center justify-between text-xs p-1.5 rounded ${
-                        name === mlPrediction.best_model ? 'bg-primary/10 border border-primary/20' : ''
-                      }`}>
-                        <div className="flex items-center gap-2">
-                          {name === mlPrediction.best_model && <span className="text-primary">★</span>}
-                          <span className={name === mlPrediction.best_model ? 'font-semibold text-foreground' : 'text-muted-foreground'}>
-                            {name}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <Badge variant="outline" className={`text-xs ${
-                            info.prediction === 'UP' ? 'border-green-500 text-green-600' :
-                            info.prediction === 'DOWN' ? 'border-red-500 text-red-600' :
-                            'border-yellow-500 text-yellow-600'
-                          }`}>
-                            {(info as any).prediction_display || (info.prediction === 'UP' ? 'YÜKSELEBİLİR' : info.prediction === 'DOWN' ? 'DÜŞEBİLİR' : 'SABİT KALABİLİR')}
-                          </Badge>
-                          <span className="font-medium w-14 text-right">
-                            %{(info.confidence * 100).toFixed(1)}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-            
-            {/* Teknik Göstergeler */}
-            {mlPrediction.technical_indicators && (
-              <div className="mb-4 p-3 bg-background/50 rounded-lg">
-                <p className="text-xs font-semibold text-muted-foreground mb-3">Teknik Göstergeler</p>
-                <div className="grid grid-cols-2 gap-3 text-xs">
-                  <div>
-                    <span className="text-muted-foreground">RSI:</span>
-                    <span className={`ml-2 font-semibold ${
-                      mlPrediction.technical_indicators.rsi < 30 ? 'text-green-500' :
-                      mlPrediction.technical_indicators.rsi > 70 ? 'text-red-500' :
-                      'text-yellow-500'
-                    }`}>
-                      {mlPrediction.technical_indicators.rsi != null && !isNaN(mlPrediction.technical_indicators.rsi)
-                        ? mlPrediction.technical_indicators.rsi.toFixed(2)
-                        : '50.00'}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">MACD:</span>
-                    <span className={`ml-2 font-semibold ${mlPrediction.technical_indicators.macd > 0 ? 'text-green-500' : 'text-red-500'}`}>
-                      {mlPrediction.technical_indicators.macd != null && !isNaN(mlPrediction.technical_indicators.macd)
-                        ? mlPrediction.technical_indicators.macd.toFixed(2)
-                        : '0.00'}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Trend:</span>
-                    <span className="ml-2 font-semibold text-foreground">
-                      {mlPrediction.technical_indicators.trend_strength != null && !isNaN(mlPrediction.technical_indicators.trend_strength)
-                        ? (mlPrediction.technical_indicators.trend_strength * 100).toFixed(1)
-                        : '0.0'}%
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Volume:</span>
-                    <span className="ml-2 font-semibold text-foreground">
-                      {mlPrediction.technical_indicators.volume_ratio != null && !isNaN(mlPrediction.technical_indicators.volume_ratio)
-                        ? mlPrediction.technical_indicators.volume_ratio.toFixed(2)
-                        : '1.00'}x
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
-            
-            {/* Teknik Sinyaller */}
-            {mlPrediction.signals && mlPrediction.signals.length > 0 && (
-              <div className="mb-4 p-3 bg-background/50 rounded-lg">
-                <p className="text-xs font-semibold text-muted-foreground mb-2">Teknik Sinyaller</p>
-                <div className="space-y-1">
-                  {mlPrediction.signals.map((signal, idx) => (
-                    <div key={idx} className="text-xs text-foreground flex items-start gap-2">
-                      <span className="text-muted-foreground">•</span>
-                      <span>{signal}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            
-            {sentimentData && sentimentData.recent_headlines && sentimentData.recent_headlines.length > 0 && (
-              <div className="mt-4 pt-4 border-t border-border/50">
-                <p className="text-xs font-semibold text-muted-foreground mb-2">Son Haberler:</p>
-                <div className="space-y-2 max-h-40 overflow-y-auto">
-                  {sentimentData.recent_headlines.slice(0, 3).map((headline, idx) => (
-                    <div key={idx} className="text-xs p-2 bg-background/50 rounded">
-                      <div className="flex items-center gap-2 mb-1">
-                        <Badge variant="outline" className="text-xs">
-                          {headline.sentiment}
-                        </Badge>
-                        <span className="text-muted-foreground">
-                          {new Date(headline.datetime).toLocaleDateString('tr-TR')}
-                        </span>
-                      </div>
-                      <p className="text-foreground line-clamp-2">{headline.headline}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            
+
+
             {/* Disclaimer */}
             <div className="mt-4 p-3 bg-muted/30 rounded-lg border border-muted/50">
               <div className="flex items-start gap-2">
@@ -560,7 +371,7 @@ export const StockComments = ({ stock, levels }: StockCommentsProps) => {
             <MessageSquare className="h-4 w-4" />
             Kullanıcı Yorumları ({userComments.length})
           </h3>
-          
+
           {/* Add Comment Form */}
           <div className="mb-4 p-4 bg-muted/20 rounded-lg border border-muted/30">
             <Textarea
@@ -633,7 +444,7 @@ export const StockComments = ({ stock, levels }: StockCommentsProps) => {
                       </div>
                     )}
                   </div>
-                  
+
                   {editingId === comment.id ? (
                     <div className="space-y-2">
                       <Textarea
@@ -674,7 +485,7 @@ export const StockComments = ({ stock, levels }: StockCommentsProps) => {
         {/* Risk Uyarısı */}
         <div className="p-4 bg-emerald-500/20 rounded-lg border-2 border-emerald-500/40">
           <p className="text-sm text-foreground font-medium leading-relaxed">
-            <strong className="text-emerald-700 dark:text-emerald-400">⚠️ Risk Uyarısı:</strong> Bu yorumlar yatırım tavsiyesi değildir. 
+            <strong className="text-emerald-700 dark:text-emerald-400">⚠️ Risk Uyarısı:</strong> Bu yorumlar yatırım tavsiyesi değildir.
             Yatırım kararlarınızı vermeden önce kendi araştırmanızı yapın ve risk toleransınızı değerlendirin.
           </p>
         </div>

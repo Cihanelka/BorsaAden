@@ -291,14 +291,14 @@ export async function getBatchPredictions(symbols: string[]): Promise<{
 /**
  * Ensemble ML tahmin al (10 model, en yüksek confidence)
  */
-export async function getEnsemblePrediction(symbol: string): Promise<MLResponse> {
+export async function getEnsemblePrediction(symbol: string, horizon: number = 5): Promise<MLResponse> {
   try {
     const response = await fetch(`${API_URL}/predict-ensemble`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ symbol }),
+      body: JSON.stringify({ symbol, horizon }),
     });
 
     const data = await response.json();
@@ -307,22 +307,29 @@ export async function getEnsemblePrediction(symbol: string): Promise<MLResponse>
     }
 
     if (data.success) {
+      // API yaniti 'result' altinda nested donebilir veya root seviyede olabilir
+      const r = data.result || data;
       return {
         success: true,
         result: {
           symbol,
-          prediction: data.prediction as 'UP' | 'DOWN' | 'NEUTRAL',
-          confidence: data.confidence || 0,
-          probabilities: data.probabilities,
-          prediction_numeric: data.prediction_numeric,
-          disclaimer: data.disclaimer,
+          prediction: r.prediction as 'AL' | 'SAT' | 'TUT' | 'UP' | 'DOWN' | 'NEUTRAL',
+          confidence: r.confidence || 0,
+          probabilities: r.probabilities,
+          prediction_numeric: r.prediction_numeric,
+          disclaimer: r.disclaimer,
+          recommendation: r.recommendation,
           method: 'ensemble',
-          timestamp: data.timestamp || new Date().toISOString(),
-          best_model: data.best_model,
-          best_model_backtest_f1: data.best_model_backtest_f1,
-          all_models: data.all_models,
-          total_models: data.total_models,
-          sentiment_impact: data.sentiment_impact,
+          timestamp: r.timestamp || new Date().toISOString(),
+          best_model: r.best_model,
+          best_model_backtest_f1: r.best_model_backtest_f1,
+          all_models: r.all_models,
+          total_models: r.total_models,
+          sentiment_impact: r.sentiment_impact,
+          technical_score: r.technical_score,
+          sentiment_score: r.sentiment_score,
+          sentiment_analysis: r.sentiment_analysis,
+          news_count: r.news_count,
         },
       };
     }

@@ -1,35 +1,27 @@
-# Veri İşleme ve ML
+# Veri Isleme ve ML
 pandas>=2.0.0
 numpy>=1.24.0
 scikit-learn>=1.3.0
 
-# Advanced ML Models
+# Gelismis ML Modelleri (15 model ensemble)
 xgboost>=2.0.0
 lightgbm>=4.0.0
 catboost>=1.2.0
+tensorflow>=2.13.0
 
-# Hisse Senedi Verileri
+# Hisse Senedi OHLCV Verisi
 yfinance>=0.2.0
-
-# Teknik Analiz
-ta>=0.11.0
 
 # API ve Web
 flask>=3.0.0
 flask-cors>=4.0.0
 requests>=2.31.0
 
-# Duygu Analizi (Transformer tabanlı)
-transformers>=4.41.0
-torch>=2.2.0
-textblob>=0.17.0
+# Haber Sentiment Analizi (hafif, GPU gerektirmez)
 vaderSentiment>=3.3.0
 
-# Deep Learning (LSTM/GRU - opsiyonel)
-tensorflow>=2.15.0
-
-# Veri Kaydetme
+# Model Kaydetme
 joblib>=1.3.0
 
-# Yapılandırma
+# Yapilandirma
 python-dotenv>=1.0.0

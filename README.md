@@ -307,10 +307,6 @@ Katkılarınızı bekliyoruz! Lütfen şu adımları izleyin:
 
 Bu proje MIT lisansı altında lisanslanmıştır. Daha fazla bilgi için [LICENSE](LICENSE) dosyasına bakın.
 
-## 📞 İletişim
-
-Sorularınız için lütfen issue açın veya [email@example.com](mailto:email@example.com) adresine e-posta gönderin.
-
 ---
 
 **© 2025-2026 Aden Borsa. Tüm Hakları Saklıdır.**
